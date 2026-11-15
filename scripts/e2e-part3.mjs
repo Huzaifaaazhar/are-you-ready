@@ -78,6 +78,12 @@ async function desktop() {
     await sleep(300)
     return true
   }
+  // Teleport onto a relic and wait until the pickup registers (frame rate varies under software rendering).
+  const grab = async (at) => {
+    const n = (await prog()).relics.length
+    await teleport(at)
+    await page.waitForFunction((n) => window.__oasis.getState().progress.relics.length > n, n, { timeout: 5000 }).catch(() => {})
+  }
   const questState = async (id) => (await prog()).quests[id]
 
   // ---------------- New game ----------------
@@ -158,8 +164,7 @@ async function desktop() {
   await page.screenshot({ path: `${OUT}/p3-04-radio.png` })
   // collect sigils
   for (const s of [[-27, 1.2, -12], [-16, 9.2, 2], [16, 15.2, 1], [-11, 21.2, -21], [16.5, 15.2, -18.5]]) {
-    await teleport(s)
-    await sleep(700)
+    await grab(s)
   }
   // secret: the pad behind the Vanta billboard
   await interact([12, 27.2, -23], 'billboard-switch')
@@ -224,8 +229,7 @@ async function desktop() {
   await page.waitForFunction(() => window.__oasis.getState().progress.items.includes('aether-crystal'), null, { timeout: 5000 }).catch(() => {})
   await page.screenshot({ path: `${OUT}/p3-07-garden.png` })
   for (const r of [[24, 31.2, -66], [13, 1.2, 18], [-7.5, 1.2, -19], [-10, 15.4, -58.5], [-28, 4.4, -14]]) {
-    await teleport(r)
-    await sleep(700)
+    await grab(r)
   }
   p = await prog()
   check('Aether Crystal + all five rune stones', p.items.includes('aether-crystal') && p.relics.filter((r) => r.startsWith('rune')).length === 5)
@@ -251,8 +255,7 @@ async function desktop() {
   check('collapsing bridge tile drops the player', afterBridge.y < -2 || Math.hypot(afterBridge.x + 13, afterBridge.z + 12.8) > 4, `y=${afterBridge.y.toFixed(1)}`)
   await sleep(1500)
   for (const s of [[23, 7.6, -4], [-13, 1.2, -27], [12, 1.2, -42], [10, 1.2, -12]]) {
-    await teleport(s)
-    await sleep(700)
+    await grab(s)
   }
   await teleport([23.5, 1.2, -40], -Math.PI / 2)
   await page.keyboard.down('KeyW')
@@ -261,8 +264,7 @@ async function desktop() {
   check('glitched wall is a hidden passage', (await prog()).flags.includes('waste-passage'))
   await teleport([29, 1.2, -40])
   await sleep(700)
-  await teleport([30, 1.2, -42])
-  await sleep(700)
+  await grab([30, 1.2, -42])
   p = await prog()
   check('Ghost Byte + all five data shards', p.items.includes('ghost-byte') && p.relics.filter((r) => r.startsWith('shard')).length === 5 && p.achievements.includes('wasteland-relics'))
   await page.screenshot({ path: `${OUT}/p3-09-secret-room.png` })
