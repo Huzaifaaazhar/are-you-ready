@@ -302,7 +302,7 @@ function Titan() {
   const hp = useShowdown((s) => s.titanHp)
   const spent = useShowdown((s) => s.spent)
   const stage = useShowdown((s) => s.stage)
-  const st = useRef({ waveAt: 0, strikeAt: 0, strikePos: [0, 0] as [number, number], strikeLive: false, sweep: 0, last: 0 })
+  const st = useRef({ waveAt: 0, strikeAt: 0, strikePos: [0, 0] as [number, number], strikeLive: false, sweep: 0, last: 0, prevR: 0 })
   const [cx, , cz] = SD.arena
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.1)
@@ -342,7 +342,10 @@ function Titan() {
       ring.current.scale.set(r, r, 1)
     }
     const dist = Math.hypot(p.x - cx, p.z - cz)
-    if (waveLive && Math.abs(dist - r) < 0.5 && p.y - 0.85 < 0.7) sdHit('Shockwave!', false)
+    // Swept test: the ring hits if it passed over you since the last frame (robust at low frame rates).
+    const prevR = waveLive && st.current.prevR > 0 && st.current.prevR < r ? st.current.prevR : r
+    st.current.prevR = waveLive ? r : 0
+    if (waveLive && dist > prevR - 0.5 && dist < r + 0.5 && p.y - 0.85 < 0.7) sdHit('Shockwave!', false)
     // Targeted strikes: move out of the red circle.
     const strikeEvery = [0, 3400, 2800, 2300][phase] / k
     const warn = 1300 / k
