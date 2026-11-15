@@ -4,10 +4,10 @@ export type BodyType = 'slim' | 'standard' | 'bulky'
 export type HeadShape = 'round' | 'angular' | 'oval' | 'bot'
 export type FaceStyle = 'bright' | 'visor' | 'narrow' | 'pixel'
 export type HairStyle = 'none' | 'crop' | 'spikes' | 'mohawk' | 'long' | 'bun' | 'swoop'
-export type Outfit = 'jumpsuit' | 'jacket' | 'hoodie' | 'racer'
-export type Armour = 'none' | 'pauldrons' | 'chestplate' | 'full'
-export type HeadGear = 'none' | 'headphones' | 'goggles' | 'antenna' | 'halo' | 'neon-visor'
-export type BackGear = 'none' | 'jetpack' | 'blade' | 'wings' | 'pixel-cape'
+export type Outfit = 'jumpsuit' | 'jacket' | 'hoodie' | 'racer' | 'archivist' | 'pixel-suit'
+export type Armour = 'none' | 'pauldrons' | 'chestplate' | 'full' | 'gladiator' | 'vanguard'
+export type HeadGear = 'none' | 'headphones' | 'goggles' | 'antenna' | 'halo' | 'neon-visor' | 'racer-helmet' | 'crown'
+export type BackGear = 'none' | 'jetpack' | 'blade' | 'wings' | 'pixel-cape' | 'drones'
 
 export interface AvatarConfig {
   name: string
@@ -66,12 +66,16 @@ export const OUTFIT_OPTIONS: Option<Outfit>[] = [
   { id: 'jacket', label: 'Street Jacket' },
   { id: 'hoodie', label: 'Hacker Hoodie' },
   { id: 'racer', label: 'Racer Leathers' },
+  { id: 'pixel-suit', label: 'Pixel Suit', requires: 'pixel-suit' },
+  { id: 'archivist', label: 'Archivist Coat', requires: 'archivist-coat' },
 ]
 export const ARMOUR_OPTIONS: Option<Armour>[] = [
   { id: 'none', label: 'None' },
   { id: 'pauldrons', label: 'Pauldrons' },
   { id: 'chestplate', label: 'Core Plate' },
   { id: 'full', label: 'Full Rig' },
+  { id: 'gladiator', label: 'Gladiator Rig', requires: 'gladiator-armour' },
+  { id: 'vanguard', label: 'Vanguard', requires: 'vanguard-armour' },
 ]
 export const HEADGEAR_OPTIONS: Option<HeadGear>[] = [
   { id: 'none', label: 'None' },
@@ -80,6 +84,8 @@ export const HEADGEAR_OPTIONS: Option<HeadGear>[] = [
   { id: 'antenna', label: 'Antenna' },
   { id: 'halo', label: 'Halo Ring' },
   { id: 'neon-visor', label: 'Neon Visor', requires: 'neon-visor' },
+  { id: 'racer-helmet', label: 'Racer Helmet', requires: 'racer-helmet' },
+  { id: 'crown', label: 'Architect’s Crown', requires: 'founder-crown' },
 ]
 export const BACKGEAR_OPTIONS: Option<BackGear>[] = [
   { id: 'none', label: 'None' },
@@ -87,6 +93,7 @@ export const BACKGEAR_OPTIONS: Option<BackGear>[] = [
   { id: 'blade', label: 'Light Blade' },
   { id: 'wings', label: 'Holo Wings' },
   { id: 'pixel-cape', label: 'Pixel Cape', requires: 'pixel-cape' },
+  { id: 'drones', label: 'Orbital Drones', requires: 'orbital-drones' },
 ]
 
 export const SKIN_TONES = ['#f6d7c3', '#e8b896', '#c98e68', '#a0673f', '#6e4428', '#3f2717', '#9fd7ff', '#c7a6ff']

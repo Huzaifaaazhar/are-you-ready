@@ -32,9 +32,9 @@ export function WorldRoot() {
       <hemisphereLight args={['#8a7dff', '#1a0630', 0.6]} />
       <directionalLight position={[20, 40, 15]} intensity={1.1} color="#d8d0ff" />
       <Suspense fallback={<WorldLoading />}>
-        <Physics key={`${worldId}-${epoch}`} gravity={[0, -22, 0]} paused={paused} timeStep="vary">
+        <Physics key={`${worldId}-${epoch}`} gravity={[0, v.gravity ?? -22, 0]} paused={paused} timeStep={1 / 60}>
           <World />
-          <Player spawn={spawn} />
+          {def.onFoot && <Player spawn={spawn} />}
         </Physics>
       </Suspense>
     </>

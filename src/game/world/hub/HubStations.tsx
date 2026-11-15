@@ -19,14 +19,14 @@ export function HallOfRecords() {
   const open = useGame((s) => s.openOverlay)
   const [x, , z] = HUB_POS.records
   const rot = faceCenter(x, z)
-  const cols = 5
+  const cols = 7
   return (
     <group>
       <group position={[x, 0, z]} rotation={[0, rot, 0]}>
         <group position={[0, 0, -4]}>
           <Block position={[0, 3.5, 0]} size={[12, 7, 0.8]} color="#120c22" edge={neonMaterial('#ffe14d', 2)} />
         </group>
-        <NeonText position={[0, 6.4, -3.5]} fontSize={0.6} color="#ffe14d" letterSpacing={0.12}>
+        <NeonText position={[0, 6.6, -3.5]} fontSize={0.5} color="#ffe14d" letterSpacing={0.12}>
           HALL OF RECORDS
         </NeonText>
         {ACHIEVEMENTS.map((a, i) => {
@@ -34,14 +34,14 @@ export function HallOfRecords() {
           const cx = (i % cols) - (cols - 1) / 2
           const cy = Math.floor(i / cols)
           return (
-            <group key={a.id} position={[cx * 2.2, 5 - cy * 1.6, -3.55]}>
+            <group key={a.id} position={[cx * 1.62, 5.6 - cy * 1.3, -3.55]}>
               <mesh material={on ? neonMaterial('#ffe14d', 0.5) : surfaceMaterial('#1c1630', 0.6, 0.4)}>
-                <planeGeometry args={[2, 1.4]} />
+                <planeGeometry args={[1.5, 1.15]} />
               </mesh>
-              <NeonText position={[0, 0.2, 0.01]} fontSize={0.45} color={on ? '#ffe14d' : '#4a4066'} intensity={on ? 3 : 1}>
+              <NeonText position={[0, 0.17, 0.01]} fontSize={0.36} color={on ? '#ffe14d' : '#4a4066'} intensity={on ? 3 : 1}>
                 {a.glyph}
               </NeonText>
-              <NeonText position={[0, -0.38, 0.01]} fontSize={0.15} maxWidth={1.9} textAlign="center" color={on ? '#ffffff' : '#4a4066'} intensity={on ? 1.6 : 1} mono>
+              <NeonText position={[0, -0.33, 0.01]} fontSize={0.11} maxWidth={1.4} textAlign="center" color={on ? '#ffffff' : '#4a4066'} intensity={on ? 1.6 : 1} mono>
                 {on ? a.title : 'LOCKED'}
               </NeonText>
             </group>

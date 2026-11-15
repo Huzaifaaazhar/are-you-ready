@@ -2,7 +2,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { CuboidCollider, RigidBody } from '@react-three/rapier'
 import { Group, MeshStandardMaterial } from 'three'
-import { LIGHT_PADS, LIGHT_SEQUENCE, SECRETS } from '../../../data/content'
+import { GLYPHS, LIGHT_PADS, LIGHT_SEQUENCE, SECRETS } from '../../../data/content'
+import { GlyphMark } from '../common/Glyph'
 import { useGame } from '../../../store/useGame'
 import { playMusic, sfx, type MusicPreset } from '../../systems/audio'
 import { useInteractable } from '../../systems/interaction'
@@ -152,7 +153,10 @@ const ORACLE_LINES = [
   ...SECRETS.map((s) => s.hint),
   'The Founder’s Gate waits in OASIS Prime. Its first lock is copper-coloured.',
   'Coins are currency here. The Prize Zone across the street trades them for gear.',
-  'Every cabinet prints a Champion Ticket for the first player to beat its target score.',
+  'Every cabinet hands a prize to the first player who beats its target.',
+  'The Founder hid six marks across the worlds. Each one points to the next. Start behind the Founder’s Gate.',
+  'In Velocity City, the racers never look behind the starting grid. They should.',
+  'Glitch Hop’s core door is marked. Only those who reach it will see.',
 ]
 
 function Cabinets() {
@@ -168,7 +172,9 @@ function Cabinets() {
   return (
     <>
       <Cabinet id="cab-serpent" position={ARCADE_POS.serpent} title="NEON SERPENT" color="#3dff8b" style={0} prompt="Play NEON SERPENT" onInteract={() => open({ type: 'arcade', game: 'serpent' })} />
-      <Cabinet id="cab-lancer" position={ARCADE_POS.lancer} title="STAR LANCER" color="#ff2bd6" style={1} prompt="Play STAR LANCER" onInteract={() => open({ type: 'arcade', game: 'lancer' })} />
+      <Cabinet id="cab-lancer" position={ARCADE_POS.lancer} title="STAR LANCER" color="#ff2bd6" style={1} prompt="Play STAR LANCER (space battle)" onInteract={() => open({ type: 'arcade', game: 'lancer' })} />
+      <Cabinet id="cab-glitchhop" position={ARCADE_POS.glitchhop} rotationY={Math.PI} title="GLITCH HOP" color="#3dff8b" style={0} prompt="Play GLITCH HOP (platformer)" onInteract={() => open({ type: 'arcade', game: 'glitchhop' })} />
+      <Cabinet id="cab-gladiator" position={ARCADE_POS.gladiator} rotationY={Math.PI} title="GRID GLADIATOR" color="#ff4d4d" style={2} prompt="Play GRID GLADIATOR (arena)" onInteract={() => open({ type: 'arcade', game: 'gladiator' })} />
       <Cabinet
         id="cab-oracle"
         position={ARCADE_POS.oracle}
@@ -274,12 +280,16 @@ function ScoreBoard() {
       <NeonText position={[0, 3.75, 0.13]} fontSize={0.32} color="#ffe14d">
         HIGH SCORES
       </NeonText>
-      <NeonText position={[0, 3.05, 0.13]} fontSize={0.22} color="#3dff8b" mono>
-        {`NEON SERPENT  ${String(scores.serpent ?? 0).padStart(5, '0')}`}
-      </NeonText>
-      <NeonText position={[0, 2.6, 0.13]} fontSize={0.22} color="#ff2bd6" mono>
-        {`STAR LANCER   ${String(scores.lancer ?? 0).padStart(5, '0')}`}
-      </NeonText>
+      {[
+        ['NEON SERPENT ', scores.serpent, '#3dff8b'],
+        ['STAR LANCER  ', scores.lancer, '#ff2bd6'],
+        ['GLITCH HOP   ', scores.glitchhop, '#3dff8b'],
+        ['GRID GLADIATR', scores.gladiator, '#ff4d4d'],
+      ].map(([label, v, c], i) => (
+        <NeonText key={label as string} position={[0, 3.25 - i * 0.36, 0.13]} fontSize={0.19} color={c as string} mono>
+          {`${label} ${String(v ?? 0).padStart(5, '0')}`}
+        </NeonText>
+      ))}
     </group>
   )
 }
@@ -311,13 +321,15 @@ function Poster() {
     position: [x - 1.2, 1, z],
     radius: 2.6,
     label: 'Read the faded poster',
-    onInteract: () =>
+    onInteract: () => {
+      useGame.getState().addJournal('lights')
       useGame.getState().openOverlay({
         type: 'info',
         title: 'A faded tour poster',
         accent: '#ffe14d',
         body: ['“THE LIGHTS REMEMBER — LIVE AT SECTOR 8-B”', 'Three dots are printed under the title, worn but clear: first the SUN, then the SKY, then the BLOOM.', 'Somewhere on this street, the lights are waiting for someone to remember.'],
-      }),
+      })
+    },
   })
   return (
     <group position={[x, y, z]} rotation={[0, -Math.PI / 2, 0]}>
@@ -410,6 +422,29 @@ function LightPads() {
   )
 }
 
+function BackroomMark() {
+  const discovered = useGame((s) => s.progress.secrets.includes('hidden-cabinet'))
+  const found = useGame((s) => s.progress.glyphs.includes(3))
+  const [x, y, z] = ARCADE_POS.glyph3
+  useInteractable({
+    id: 'glyph-3',
+    position: [x + 1.5, 1, z],
+    radius: 2,
+    enabled: discovered,
+    label: 'Inspect the mark on the wall',
+    onInteract: () => {
+      const g = useGame.getState()
+      g.findGlyph(3)
+      g.openOverlay({ type: 'info', title: 'A mark in the Founder’s storage', accent: '#ffe14d', body: ['Painted in copper above an old workbench: a diamond on a stem, like a key. The third mark.', GLYPHS[2].next] })
+    },
+  })
+  return (
+    <group position={[x, y, z]} rotation={[0, Math.PI / 2, 0]} visible={discovered}>
+      <GlyphMark index={3} size={0.5} color={found ? '#6a5a90' : '#ff9a4d'} />
+    </group>
+  )
+}
+
 function Props() {
   const crate = surfaceMaterial('#2a1f12', 0.8, 0.1)
   return (
@@ -457,6 +492,7 @@ export default function ArcadeWorld() {
       <Poster />
       <LightPads />
       <Props />
+      <BackroomMark />
       <ItemPickup item="copper-key" position={ARCADE_POS.key} color="#ff9a4d">
         <group rotation={[0, 0, Math.PI / 2]}>
           <mesh position={[0, 0.25, 0]} material={neonMaterial('#ff9a4d', 2.2)}>

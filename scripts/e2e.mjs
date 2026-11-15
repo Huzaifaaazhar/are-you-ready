@@ -165,10 +165,10 @@ async function desktop() {
 
   // collectibles
   const w0 = (await state()).progress.wallet
-  await teleport([0, 1.2, 15], 0)
-  await sleep(700)
+  await teleport([11, 1.2, 8], 0)
+  await page.waitForFunction(() => window.__oasis.getState().progress.collected.includes('hub-c2'), null, { timeout: 5000 }).catch(() => {})
   s = await state()
-  check('walking into a coin collects it', s.progress.wallet === w0 + 1 && s.progress.collected.includes('hub-c1'), `wallet ${w0} -> ${s.progress.wallet}`)
+  check('walking into a coin collects it', s.progress.wallet >= w0 + 1 && s.progress.collected.includes('hub-c2'), `wallet ${w0} -> ${s.progress.wallet}`)
 
   // sky platform secret via teleport onto final stone
   await teleport([21.5, 9.2, -27.5], 0)

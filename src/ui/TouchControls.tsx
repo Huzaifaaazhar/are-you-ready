@@ -10,6 +10,7 @@ import { triggerInteract } from '../game/systems/interaction'
 export function TouchControls() {
   const prompt = useGame((s) => s.prompt)
   const overlay = useGame((s) => s.overlay)
+  const driving = useGame((s) => s.worldId === 'race')
   const stick = useRef<{ id: number; x: number; y: number } | null>(null)
   const look = useRef<{ id: number; x: number; y: number } | null>(null)
   const [knob, setKnob] = useState<{ bx: number; by: number; dx: number; dy: number } | null>(null)
@@ -99,7 +100,7 @@ export function TouchControls() {
               setSprint(input.touchSprint)
             }}
           >
-            »
+            {driving ? 'BOOST' : '»'}
           </button>
           <button
             aria-label="Jump"
@@ -108,9 +109,12 @@ export function TouchControls() {
             onPointerDown={(e) => {
               e.stopPropagation()
               queueJump()
+              input.touchHandbrake = true
             }}
+            onPointerUp={() => (input.touchHandbrake = false)}
+            onPointerLeave={() => (input.touchHandbrake = false)}
           >
-            JUMP
+            {driving ? 'DRIFT' : 'JUMP'}
           </button>
         </div>
       </div>

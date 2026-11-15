@@ -37,7 +37,17 @@ export const HUB_POS = {
   atlas: [-24, 0, -24] as Vec3,
   locker: [9, 0, 17] as Vec3,
   beacon: [-7, 0, 17] as Vec3,
+  racePortal: [0, 0, 41] as Vec3,
+  vaultPad: [-43, 0, -11] as Vec3,
+  vault: [-44, 40, -11] as Vec3,
+  monument: [-12, 0, -14] as Vec3,
+  glyph2: [0, 0.42, -7.56] as Vec3,
 }
+export const TRIAL_PORTALS = [
+  { trial: 'past', pos: [-52, 0, -9] as Vec3 },
+  { trial: 'present', pos: [-52, 0, 0] as Vec3 },
+  { trial: 'future', pos: [-52, 0, 9] as Vec3 },
+] as const
 
 export const HUB_LAYOUT: WorldLayout = {
   id: 'hub',
@@ -47,6 +57,8 @@ export const HUB_LAYOUT: WorldLayout = {
   spawns: {
     default: { pos: [0, 1.2, 25], yaw: 0 },
     fromArcade: { pos: [0, 1.2, -29], yaw: Math.PI },
+    fromRace: { pos: [0, 1.2, 33], yaw: 0 },
+    fromTrials: { pos: [-45, 1.2, 0], yaw: -Math.PI / 2 },
   },
   pois: [
     { id: 'arcade-portal', label: 'Arcade District Portal', x: 0, z: -36, kind: 'portal' },
@@ -59,6 +71,9 @@ export const HUB_LAYOUT: WorldLayout = {
     { id: 'locker', label: 'Inventory Locker', x: 9, z: 17, kind: 'service' },
     { id: 'beacon', label: 'Welcome Beacon', x: -7, z: 17, kind: 'service' },
     { id: 'stones', label: 'Floating Stones', x: 18, z: -16, kind: 'secret' },
+    { id: 'race-portal', label: 'Velocity City Portal', x: 0, z: 41, kind: 'portal' },
+    { id: 'trials', label: 'Trial portals', x: -52, z: 0, kind: 'challenge' },
+    { id: 'monument', label: 'Your Monument', x: -12, z: -14, kind: 'service' },
   ],
   coins: [
     { id: 'hub-c1', pos: [0, 1, 15] },

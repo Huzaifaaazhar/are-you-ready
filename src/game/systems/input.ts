@@ -8,6 +8,7 @@ export const input = {
   /** Virtual joystick, -1..1. y is forward. */
   joy: { x: 0, y: 0 },
   touchSprint: false,
+  touchHandbrake: false,
   jumpQueuedAt: 0,
   look: { dx: 0, dy: 0 },
 }
@@ -40,6 +41,7 @@ export function clearInput() {
   input.joy.x = 0
   input.joy.y = 0
   input.touchSprint = false
+  input.touchHandbrake = false
   input.look.dx = 0
   input.look.dy = 0
 }

@@ -5,6 +5,11 @@ import { WORLDS, TOTAL_COINS } from '../game/world/registry'
 import { RACE_CHECKPOINTS } from '../game/world/hub/layout'
 import { AvatarBadge } from './AvatarBadge'
 import { triggerInteract } from '../game/systems/interaction'
+import { levelFor } from '../data/content'
+import { xpPct } from './panels/Panels'
+import { TRIAL_TEXT, useTrialHud } from '../game/world/trials/common'
+import { carState, useRace } from '../store/useRace'
+import { CHECKPOINTS } from '../game/world/race/layout'
 
 function RaceTimer() {
   const race = useGame((s) => s.race)
@@ -40,6 +45,89 @@ function RaceTimer() {
         )}
       </AnimatePresence>
     </>
+  )
+}
+
+function RaceHUD({ touch }: { touch: boolean }) {
+  const status = useRace((s) => s.status)
+  const cp = useRace((s) => s.cp)
+  const best = useGame((s) => s.progress.gpBest)
+  const overlay = useGame((s) => s.overlay)
+  const speedRef = useRef<HTMLSpanElement>(null)
+  const timeRef = useRef<HTMLSpanElement>(null)
+  const boostRef = useRef<HTMLDivElement>(null)
+  const lines = useRef<HTMLDivElement>(null)
+  const [count, setCount] = useState<number | null>(null)
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      const r = useRace.getState()
+      const now = performance.now()
+      if (speedRef.current) speedRef.current.textContent = String(Math.round(Math.abs(carState.speed) * 3.6))
+      if (timeRef.current) timeRef.current.textContent = r.status === 'racing' ? ((now - r.startTime) / 1000).toFixed(2) : r.finishTime ? r.finishTime.toFixed(2) : '0.00'
+      if (boostRef.current) {
+        boostRef.current.style.width = `${carState.boost}%`
+        boostRef.current.style.background = carState.boosting ? '#4dd2ff' : carState.drifting ? '#ff2bd6' : '#3dff8b'
+      }
+      if (lines.current) lines.current.style.opacity = String(Math.max(0, Math.min(0.85, (Math.abs(carState.speed) - 22) / 25 + (carState.boosting ? 0.3 : 0))))
+      setCount(r.status === 'countdown' ? Math.max(0, Math.ceil((r.countdownEnd - now) / 1000)) : null)
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  return (
+    <>
+      {/* speed lines */}
+      <div ref={lines} className="pointer-events-none absolute inset-0 opacity-0" style={{ background: 'repeating-conic-gradient(from 0deg at 50% 55%, transparent 0deg 3deg, rgba(160,240,255,0.18) 3deg 3.6deg)', maskImage: 'radial-gradient(circle at 50% 55%, transparent 35%, black 80%)' }} />
+      <div className={`holo pointer-events-none absolute left-1/2 -translate-x-1/2 px-5 py-2 text-center ${touch ? 'top-[210px]' : 'bottom-10'}`} style={{ '--accent': '#3dff8b' } as CSSProperties} data-testid="race-hud">
+        <div className="font-display text-[0.6rem] tracking-[0.3em] text-lime">
+          GRAND PRIX · {status === 'racing' ? `CHECKPOINT ${Math.min(cp + 1, CHECKPOINTS.length)}/${CHECKPOINTS.length} · ${CHECKPOINTS[Math.min(cp, CHECKPOINTS.length - 1)].label.toUpperCase()}` : status.toUpperCase()}
+        </div>
+        <div className="font-display text-2xl font-bold tabular-nums text-white">
+          <span ref={timeRef}>0.00</span>s
+        </div>
+        {best && <div className="font-mono text-[0.6rem] text-white/50">BEST {best.toFixed(2)}s</div>}
+      </div>
+      <div className={`holo pointer-events-none absolute ${touch ? 'bottom-52 right-4' : 'bottom-6 right-6'} px-4 py-2 text-right`} style={{ '--accent': '#00f0ff' } as CSSProperties}>
+        <div className="font-display text-4xl font-black tabular-nums text-white">
+          <span ref={speedRef} data-testid="speed">0</span>
+          <span className="ml-1 text-xs text-cyan">KM/H</span>
+        </div>
+        <div className="mt-1 h-2 w-40 bg-white/10">
+          <div ref={boostRef} className="h-full transition-[width] duration-100" />
+        </div>
+        <div className="mt-0.5 font-mono text-[0.6rem] text-white/50">BOOST · SHIFT{touch ? '' : ' · SPACE DRIFT CHARGES IT'}</div>
+      </div>
+      {!touch && !overlay && <div className="pointer-events-none absolute bottom-4 left-4 font-mono text-[0.62rem] text-white/45">W/S throttle · A/D steer · Space handbrake · Shift boost · C camera · V look back · R respawn</div>}
+      {!overlay && (status === 'garage' || status === 'finished') && (
+        <button className="holo-btn pointer-events-auto absolute bottom-16 left-1/2 -translate-x-1/2" style={{ '--accent': '#3dff8b' } as CSSProperties} onClick={() => useGame.getState().openOverlay({ type: status === 'finished' ? 'race-result' : 'garage' })}>
+          Open garage <span className="kbd ml-1">G</span>
+        </button>
+      )}
+      <AnimatePresence>
+        {count !== null && count > 0 && (
+          <motion.div key={count} className="neon-text pointer-events-none absolute inset-0 flex items-center justify-center font-display text-8xl font-black" style={{ '--glow': '#3dff8b' } as CSSProperties} initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }}>
+            {count}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  )
+}
+
+function TrialStatus() {
+  const trial = useTrialHud((s) => s.trial)
+  const status = useTrialHud((s) => s.status)
+  if (!trial || status.length === 0) return null
+  return (
+    <div className="holo pointer-events-none absolute left-3 top-[150px] px-3 py-2 sm:left-5 sm:top-[110px]" style={{ '--accent': '#ffe14d' } as CSSProperties} data-testid="trial-status">
+      {status.map((l) => (
+        <div key={l} className="font-mono text-[0.75rem] text-white/85">
+          {l}
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -99,7 +187,16 @@ export function HUD({ touch }: { touch: boolean }) {
   const locked = useGame((s) => s.pointerLocked)
   const mode = useGame((s) => s.settings.controlMode)
   const open = useGame((s) => s.openOverlay)
-  const obj = getObjective(progress, race)
+  const trialHud = useTrialHud((s) => s.trial)
+  const raceStatus = useRace((s) => s.status)
+  const obj =
+    worldId === 'race'
+      ? { title: 'Velocity City Grand Prix', detail: raceStatus === 'racing' ? 'Hit every checkpoint and cross the finish' : raceStatus === 'finished' ? 'Race again, or return to OASIS Prime' : 'Pick a vehicle in the garage and start the race' }
+      : trialHud
+        ? { title: TRIAL_TEXT[trialHud].title, detail: TRIAL_TEXT[trialHud].objectives[0] }
+        : getObjective(progress, race)
+  const level = levelFor(progress.xp)
+  const driving = worldId === 'race'
   const layout = WORLDS[worldId].layout
   if (!avatar) return null
   return (
@@ -110,8 +207,13 @@ export function HUD({ touch }: { touch: boolean }) {
           <AvatarBadge avatar={avatar} size={44} />
         </button>
         <div className="min-w-0 sm:min-w-[110px]">
-          <div className="font-display text-[0.8rem] font-bold tracking-[0.1em] text-white" data-testid="hud-name">
-            {avatar.name}
+          <div className="flex items-center gap-2">
+            <div className="font-display text-[0.8rem] font-bold tracking-[0.1em] text-white" data-testid="hud-name">
+              {avatar.name}
+            </div>
+            <span className="border border-cyan/40 px-1 font-display text-[0.55rem] text-cyan" data-testid="hud-level" title={`${progress.xp} XP`}>
+              LV {level}
+            </span>
           </div>
           <div className="truncate font-mono text-[0.65rem] uppercase tracking-[0.15em] text-cyan/80" data-testid="hud-location">
             ◉ {layout.name} · {layout.subtitle}
@@ -121,6 +223,9 @@ export function HUD({ touch }: { touch: boolean }) {
               <div className="h-full transition-[width] duration-150" style={{ width: `${energy}%`, background: energy < 25 ? '#ff4d4d' : '#3dff8b', boxShadow: `0 0 8px ${energy < 25 ? '#ff4d4d' : '#3dff8b'}` }} />
             </div>
             <span className="font-mono text-[0.6rem] text-white/50">EN</span>
+          </div>
+          <div className="mt-1 h-0.5 w-24 bg-white/10" title="Experience">
+            <div className="h-full bg-cyan/80" style={{ width: `${xpPct(progress.xp)}%` }} />
           </div>
         </div>
       </div>
@@ -133,6 +238,9 @@ export function HUD({ touch }: { touch: boolean }) {
           </div>
           <button className="holo-btn pointer-events-auto !px-3 !py-1.5" onClick={() => open({ type: 'inventory' })} aria-label="Inventory">
             ▦ {!touch && <span className="kbd ml-1">I</span>}
+          </button>
+          <button className="holo-btn pointer-events-auto !px-3 !py-1.5" onClick={() => open({ type: 'journal' })} aria-label="Journal" data-testid="journal-btn">
+            ✎ {!touch && <span className="kbd ml-1">J</span>}
           </button>
           <button className="holo-btn pointer-events-auto !px-3 !py-1.5" onClick={() => open({ type: 'map' })} aria-label="Map">
             ⌖ {!touch && <span className="kbd ml-1">M</span>}
@@ -148,6 +256,8 @@ export function HUD({ touch }: { touch: boolean }) {
       </div>
 
       <RaceTimer />
+      {driving && <RaceHUD touch={touch} />}
+      <TrialStatus />
       <Toasts />
       <LocationBanner />
 
@@ -164,13 +274,13 @@ export function HUD({ touch }: { touch: boolean }) {
       </AnimatePresence>
 
       {/* mouse-look hint */}
-      {!touch && mode === 'mouse' && !locked && !overlay && (
+      {!touch && !driving && mode === 'mouse' && !locked && !overlay && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[0.7rem] tracking-[0.2em] text-white/55">CLICK TO LOOK AROUND · ESC TO PAUSE</div>
       )}
-      {!touch && mode === 'assist' && !overlay && (
+      {!touch && !driving && mode === 'assist' && !overlay && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 font-mono text-[0.7rem] tracking-[0.2em] text-white/45">ASSIST MODE · DRAG OR ← → / Q R TO TURN</div>
       )}
-      {!touch && !overlay && (
+      {!touch && !overlay && !driving && (
         <div className="absolute bottom-4 left-4 hidden font-mono text-[0.62rem] leading-5 text-white/40 lg:block">
           <span className="kbd">W</span>
           <span className="kbd">A</span>

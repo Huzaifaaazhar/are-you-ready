@@ -12,6 +12,8 @@ interface Props {
   fog?: string
   fogFar?: number
   seed?: number
+  /** Place buildings inside these rectangles [minX, maxX, minZ, maxZ] instead of a ring. */
+  rects?: [number, number, number, number][]
 }
 
 function rng(seed: number) {
@@ -26,7 +28,7 @@ function rng(seed: number) {
  * Instanced procedural city: one draw call for hundreds of towers.
  * Windows, roof trims and distance fade are computed in the shader from world position.
  */
-export function Skyline({ count = 240, inner = 75, outer = 200, minH = 20, maxH = 110, palette = ['#00f0ff', '#ff2bd6', '#9d4dff', '#4d7cff'], fog = '#0a0420', fogFar = 260, seed = 7 }: Props) {
+export function Skyline({ count = 240, inner = 75, outer = 200, minH = 20, maxH = 110, palette = ['#00f0ff', '#ff2bd6', '#9d4dff', '#4d7cff'], fog = '#0a0420', fogFar = 260, seed = 7, rects }: Props) {
   const ref = useRef<InstancedMesh>(null)
   const geo = useMemo(() => {
     const g = new BoxGeometry(1, 1, 1)
@@ -88,9 +90,12 @@ export function Skyline({ count = 240, inner = 75, outer = 200, minH = 20, maxH 
     for (let i = 0; i < count; i++) {
       const a = r() * Math.PI * 2
       const d = inner + Math.pow(r(), 0.7) * (outer - inner)
-      const h = minH + Math.pow(r(), 1.6) * (maxH - minH) * (1 - (d - inner) / (outer - inner) * 0.3)
+      const h = minH + Math.pow(r(), 1.6) * (maxH - minH) * (rects ? 1 : 1 - ((d - inner) / (outer - inner)) * 0.3)
       const w = 6 + r() * 10
-      o.position.set(Math.cos(a) * d, 0, Math.sin(a) * d)
+      if (rects) {
+        const rc = rects[i % rects.length]
+        o.position.set(rc[0] + r() * (rc[1] - rc[0]), 0, rc[2] + r() * (rc[3] - rc[2]))
+      } else o.position.set(Math.cos(a) * d, 0, Math.sin(a) * d)
       o.rotation.y = r() * Math.PI
       o.scale.set(w, h, 6 + r() * 10)
       o.updateMatrix()
@@ -107,7 +112,7 @@ export function Skyline({ count = 240, inner = 75, outer = 200, minH = 20, maxH 
     geo.setAttribute('aHeight', new InstancedBufferAttribute(heights, 1))
     m.instanceMatrix.needsUpdate = true
     m.computeBoundingSphere()
-  }, [count, inner, outer, minH, maxH, palette, seed, geo])
+  }, [count, inner, outer, minH, maxH, palette, seed, geo, rects])
 
   useFrame((s) => {
     mat.uniforms.uTime.value = s.clock.elapsedTime

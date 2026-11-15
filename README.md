@@ -26,6 +26,40 @@ A playable 3D browser game inspired by the 2018 film *Ready Player One*: boot in
   - crates you can climb to a rooftop ledge
 - **Progression:** 24 coins, 4 secrets, 8 items, 13 achievements and an objective tracker. Everything is saved to `localStorage`.
 
+## Part 2 — the challenges
+
+- **Velocity City Grand Prix** (portal south of the hub spawn). This is the first major challenge and a real physics race.
+  - **Handling:** the car uses Rapier's raycast vehicle controller, with suspension, engine force, braking, speed-sensitive steering and per-wheel grip. The handbrake drops the rear wheels' side grip so the car drifts, and drifting charges the boost meter. Boost and downforce are included too.
+  - **Track:** an original course of roughly 850 m. The highway has dynamic traffic and sliding barriers, and debris falls onto it. At the junction it forks into a skyway, where a tower collapses across the road, or a narrow tunnel with timed crushers. After that come a ramp jump over a pit, swinging wrecking balls, and a rotating arm guarding the finish. A hidden undercity route starts behind the starting grid.
+  - **Race structure:** checkpoints with respawn (R, or automatic when the car is flipped or falls), a countdown, a timer, a best time and a results screen with retry.
+  - **Vehicles:** three original cars with different handling. Volt Runner is the starter, Brick Mk II unlocks when you finish once, and Wisp GT can be bought in the garage for 20 coins.
+- **Arcade District cabinets** (all playable on keyboard and touch):
+  - **Star Lancer:** a top-down space battle. You fly freely, fire automatically and face grunts, divers, turrets and a boss every fifth wave. It has spread, rapid, shield and repair power-ups, a health bar and rising difficulty.
+  - **Glitch Hop:** a pixel platformer with variable-height jumps, moving platforms, bits to collect, spikes, bugs you can stomp, checkpoint flags, lives and a core to reach at the end.
+  - **Grid Gladiator:** arena survival with three enemy types (a chaser, a ranged shooter and a charger that winds up before dashing). You get a melee strike, a dash with brief invulnerability, health, healing drops and five waves.
+  - **Neon Serpent:** from Part 1, still playable.
+  - **Prizes:** each cabinet hands out a one-time prize (gear plus coins) for beating its target.
+- **The Founder's Hunt** (the Easter-egg hunt):
+  - **Marks:** six hidden marks spread across the hub, the Arcade District, Glitch Hop, Velocity City and Trial I. Each mark you find gives the clue to the next one.
+  - **Journal:** the Hunter's Journal (J) records the marks, clues, memories and trial progress.
+  - **Ending:** once you have all six, entering them in order at the cipher lock behind the Founder's Gate opens the Founder's Vault. A light beam carries you up to it, and the Founder's Egg is inside.
+- **The three trials**, entered through portals behind the Founder's Gate. Each opens with its lock, and the first also requires a Grand Prix finish.
+  - **I · The Past (memory archive):**
+    - **The task:** find four memory objects in the Founder's 1989 basement. Their texts tell the story of the Founder and their friend Rook. Carry the objects to the projector and place them in the order the events were lived.
+    - **Failure:** a wrong order costs integrity, and the memory resets at zero.
+    - **The final step:** act on what the memory reveals by returning Rook's controller to Rook's empty chair.
+  - **II · The Present (Consortium Tower):**
+    - **Stealth:** get past drones and a camera whose vision cones are blocked by cover. Being spotted sends you back to the zone checkpoint.
+    - **The vault door:** it needs a passphrase the Consortium stole from an Arcade District poster, so it rewards knowing the OASIS.
+    - **The decision:** an executive hologram offers 1,000 coins if you hand over the Founder's keys. Signing fails the trial. Broadcasting their plan instead starts a timed escape through blinking laser gates.
+  - **III · The Future (the Blueprint):**
+    - **The board:** route a light beam into three receivers with four mirrors and a splitter on a 9×7 grid. A solver found 21 valid solutions.
+    - **Testing and failure:** you fire the emitter to test your design. Leaving the beam on a corruption node for 4 seconds overloads the board and resets it.
+    - **The monument:** then design a voxel monument, which is built in OASIS Prime.
+- **Progression:**
+  - **What's tracked:** XP and levels (each level-up pays coins), coins, items, achievements (25 in total), race results, arcade high scores, marks, trials, vehicles and your monument.
+  - **Rewards that change the game:** new outfits (Archivist Coat, Pixel Suit), armour (Gladiator Rig, Vanguard), head gear (Racer Helmet, Architect's Crown), back gear (Orbital Drones), vehicles, trial portals, the vault area and the monument.
+
 ## Controls
 
 | Action | Keyboard / mouse | Touch |
@@ -36,8 +70,14 @@ A playable 3D browser game inspired by the 2018 film *Ready Player One*: boot in
 | Jump | Space | JUMP |
 | Sprint | Shift (uses energy) | » toggle |
 | Interact | E (or Enter) | E button or tap the prompt |
-| Inventory / map | I / M | HUD buttons |
+| Inventory / map / journal | I / M / J | HUD buttons |
 | Pause | Esc (or P) | ❚❚ |
+
+**Driving (Velocity City):**
+- W/↑ accelerate, S/↓ brake and reverse, A/D or ←/→ steer.
+- Space handbrake (drift), Shift boost.
+- C cycles camera views, V looks back, the mouse orbits the camera, R respawns at the last checkpoint and G opens the garage.
+- On touch: the stick drives, and the buttons are DRIFT and BOOST.
 
 **Assist camera mode** (Pause → Settings) never captures the pointer. You turn the camera by dragging or with the arrow keys, and it follows you as you move. The Settings panel also has look sensitivity, invert Y, touch-control override, graphics quality, reduced motion and volume.
 
@@ -71,8 +111,10 @@ src/
       WorldRoot    loads exactly one world inside its own physics world, spawns the player
       common/      reusable building blocks: Portal, Kiosk, Coins, ItemPickup, Block, GridFloor,
                    SkyDome, Skyline (instanced), SkyTraffic (instanced), Particles (GPU), NeonText
-      hub/         OASIS Prime: layout data + world + stations (gate, circuit, records, nexus, atlas)
+      hub/         OASIS Prime: layout data + world + stations (gate, trial portals, vault, circuit, records…)
       arcade/      Arcade District: layout data + world + props (cabinets, rain, signs)
+      race/        Velocity City: track builder, Rapier vehicle, hazards, autopilot (tests)
+      trials/      past/ present/ future/ — the three Founder's trials + shared intro/result/HUD
   ui/              DOM layer: Boot, Title, Creator, HUD, TouchControls, overlay Panels, mini-games
 ```
 
@@ -102,9 +144,20 @@ src/
 
 It saves screenshots to `screenshots/`.
 
+`scripts/e2e-part2.mjs` starts from a save where Part 1 is complete and plays Part 2:
+- **The race:** it drives with the keyboard (throttle, steering, boost, drift, brake, respawn). A built-in waypoint autopilot then finishes the Grand Prix through the real vehicle physics; it uses the same controls a player does, with no teleporting. It also drives the hidden undercity route.
+- **The arcade:** it plays Glitch Hop, Star Lancer and Grid Gladiator.
+- **The hunt:** it collects all six marks.
+- **The trials:** it completes all three, including their failure branches (a wrong memory order, being spotted, signing the contract, a corruption overload) and a different Blueprint solution from the one mentioned in this README.
+- **The ending:** it solves the cipher, claims the Egg, equips the rewards, checks persistence after a reload, and drives on touch on a phone.
+
 ```bash
 npm run dev &
-npm run test:e2e
+npm run test:e2e        # both suites; or test:e2e:part1 / test:e2e:part2
 ```
 
-Debug handles for the console: `window.__oasis` (store) and `window.__player` (live player state, plus `teleport([x, y, z], yaw)`).
+Debug handles for the console:
+- `window.__oasis`: the game store.
+- `window.__player`: live player state, plus `teleport([x, y, z], yaw)`.
+- `window.__race` and `window.__car`: race state and car telemetry; `__race.setState({ autopilot: true })` drives the car.
+- `window.__past`, `__present` and `__future`: the trial states.

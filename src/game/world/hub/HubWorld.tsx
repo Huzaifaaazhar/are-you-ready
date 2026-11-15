@@ -15,7 +15,8 @@ import { SkyDome } from '../common/SkyDome'
 import { SkyTraffic } from '../common/SkyTraffic'
 import { neonMaterial, surfaceMaterial } from '../common/materials'
 import { CentralTower } from './CentralTower'
-import { FounderGate } from './FounderGate'
+import { FounderGate, PlinthGlyph } from './FounderGate'
+import { MonumentModel } from '../common/Monument'
 import { AtlasObservatory, HallOfRecords, IdentityNexus, ServiceKiosks } from './HubStations'
 import { HUB_LAYOUT, HUB_POS, HUB_RADIUS, SKY_PLATFORM, STEPPING_STONES } from './layout'
 import { VelocityCircuit } from './VelocityCircuit'
@@ -143,6 +144,24 @@ function Billboards() {
   )
 }
 
+function MonumentPlinth() {
+  const monument = useGame((s) => s.progress.monument)
+  const name = useGame((s) => s.avatar?.name ?? 'Player')
+  const [x, , z] = HUB_POS.monument
+  if (!monument) return null
+  return (
+    <group position={[x, 0, z]}>
+      <Block position={[0, 0.3, 0]} size={[6, 0.6, 6]} color="#132235" edge={neonMaterial('#ffe14d', 2.4)} />
+      <group position={[0, 0.6, 0]}>
+        <MonumentModel monument={monument} />
+      </group>
+      <NeonText position={[0, 6.2, 0]} rotation={[0, Math.atan2(-x, -z), 0]} fontSize={0.45} color="#ffe14d">
+        {`MONUMENT OF ${name.toUpperCase()}`}
+      </NeonText>
+    </group>
+  )
+}
+
 export default function HubWorld() {
   const quality = useGame((s) => s.settings.quality)
   return (
@@ -168,6 +187,18 @@ export default function HubWorld() {
         target="arcade"
       />
       <FounderGate />
+      <PlinthGlyph />
+      <MonumentPlinth />
+      <Portal
+        id="portal-race"
+        position={HUB_POS.racePortal}
+        rotationY={Math.PI}
+        label="VELOCITY CITY"
+        sublabel="grand prix · vehicles · the first challenge"
+        color="#3dff8b"
+        color2="#00f0ff"
+        target="race"
+      />
       <VelocityCircuit />
       <HallOfRecords />
       <IdentityNexus />

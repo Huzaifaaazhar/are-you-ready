@@ -7,7 +7,7 @@ type Sfx =
   | 'blip' | 'select' | 'coin' | 'portal' | 'achievement' | 'error' | 'boot' | 'jump'
   | 'secret' | 'checkpoint' | 'countdown' | 'go' | 'unlock' | 'eat' | 'shoot' | 'explode' | 'hurt'
 
-export type MusicPreset = 'title' | 'hub' | 'arcade' | 'arcade-synthwave' | 'arcade-chip' | 'off'
+export type MusicPreset = 'title' | 'hub' | 'arcade' | 'arcade-synthwave' | 'arcade-chip' | 'race' | 'past' | 'present' | 'future' | 'off'
 
 let ctx: AudioContext | null = null
 let master: GainNode | null = null
@@ -119,6 +119,10 @@ const MUSIC: Record<Exclude<MusicPreset, 'off'>, MusicDef> = {
   hub: { chords: [[50, 57, 62, 65], [46, 53, 58, 62], [48, 55, 60, 64], [45, 52, 57, 60]], bpm: 84, wave: 'sawtooth', arp: true, bass: true, cutoff: 1300 },
   arcade: { chords: [[57, 60, 64, 67], [53, 57, 60, 64], [55, 59, 62, 67], [52, 55, 59, 64]], bpm: 118, wave: 'square', arp: true, bass: true, cutoff: 2200 },
   'arcade-synthwave': { chords: [[45, 52, 57, 64], [48, 55, 60, 67], [43, 50, 55, 62], [41, 48, 53, 60]], bpm: 96, wave: 'sawtooth', arp: true, bass: true, cutoff: 1600 },
+  race: { chords: [[45, 52, 57, 64], [43, 50, 55, 62], [41, 48, 53, 60], [43, 50, 55, 62]], bpm: 150, wave: 'sawtooth', arp: true, bass: true, cutoff: 2600 },
+  past: { chords: [[48, 55, 60, 64], [45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 59]], bpm: 66, wave: 'triangle', arp: true, bass: false, cutoff: 1100 },
+  present: { chords: [[50, 53, 57, 60], [50, 53, 56, 60], [48, 51, 55, 58], [47, 50, 53, 57]], bpm: 100, wave: 'square', arp: false, bass: true, cutoff: 900 },
+  future: { chords: [[52, 59, 64, 71], [57, 64, 69, 72], [55, 62, 67, 71], [60, 67, 72, 76]], bpm: 90, wave: 'sine', arp: true, bass: true, cutoff: 3200 },
   'arcade-chip': { chords: [[60, 64, 67, 72], [65, 69, 72, 77], [67, 71, 74, 79], [64, 67, 71, 76]], bpm: 140, wave: 'square', arp: true, bass: false, cutoff: 3500 },
 }
 
@@ -223,3 +227,52 @@ export function playMusic(preset: MusicPreset) {
 export function getCurrentMusic() {
   return currentMusic
 }
+
+/** Continuous engine tone for the race (pitch follows speed). */
+export const engineSound = (() => {
+  let osc: OscillatorNode | null = null
+  let osc2: OscillatorNode | null = null
+  let gain: GainNode | null = null
+  let filter: BiquadFilterNode | null = null
+  return {
+    start() {
+      const c = ensure()
+      if (!c || !master || osc) return
+      osc = c.createOscillator()
+      osc2 = c.createOscillator()
+      gain = c.createGain()
+      filter = c.createBiquadFilter()
+      osc.type = 'sawtooth'
+      osc2.type = 'square'
+      filter.type = 'lowpass'
+      filter.frequency.value = 600
+      gain.gain.value = 0.0001
+      osc.connect(filter)
+      osc2.connect(filter)
+      filter.connect(gain).connect(master)
+      osc.start()
+      osc2.start()
+    },
+    update(ratio: number, boosting: boolean) {
+      if (!osc || !osc2 || !gain || !filter || !ctx) return
+      const r = Math.max(0, Math.min(1.3, ratio))
+      const f = 45 + r * 150 + (boosting ? 40 : 0)
+      osc.frequency.setTargetAtTime(f, ctx.currentTime, 0.05)
+      osc2.frequency.setTargetAtTime(f * 0.5, ctx.currentTime, 0.05)
+      filter.frequency.setTargetAtTime(400 + r * 1600 + (boosting ? 800 : 0), ctx.currentTime, 0.05)
+      gain.gain.setTargetAtTime(muted ? 0.0001 : 0.025 + r * 0.035, ctx.currentTime, 0.08)
+    },
+    stop() {
+      try {
+        osc?.stop()
+        osc2?.stop()
+      } catch {
+        /* already stopped */
+      }
+      gain?.disconnect()
+      osc = osc2 = null
+      gain = null
+      filter = null
+    },
+  }
+})()

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ACHIEVEMENTS, CABINETS, FOUNDER_RIDDLE, ITEMS, PRIZES, RACE_FAST_TIME, SECRETS, type MapShape } from '../../data/content'
+import { ACHIEVEMENTS, CABINETS, FOUNDER_RIDDLE, GLYPHS, ITEMS, LEVEL_XP, LOCK_KEYS, PRIZES, RACE_FAST_TIME, SECRETS, TRIALS, VEHICLES, levelFor, type MapShape } from '../../data/content'
 import { useGame, type Overlay } from '../../store/useGame'
 import { TOTAL_COINS, WORLD_ORDER, WORLDS } from '../../game/world/registry'
 import { BACKROOM } from '../../game/world/arcade/layout'
 import { playerState } from '../../game/systems/playerState'
+import { useRace } from '../../store/useRace'
 import { sfx } from '../../game/systems/audio'
 import { AvatarBadge } from '../AvatarBadge'
 import { Panel } from '../Panel'
@@ -24,6 +25,7 @@ function Stat({ label, value, accent = '#00f0ff' }: { label: string; value: stri
 export function PausePanel({ close }: { close: () => void }) {
   const open = useGame((s) => s.openOverlay)
   const race = useGame((s) => s.race.status)
+  const worldId = useGame((s) => s.worldId)
   const [confirmReset, setConfirmReset] = useState(false)
   const resume = () => {
     close()
@@ -50,6 +52,17 @@ export function PausePanel({ close }: { close: () => void }) {
             Abandon race
           </button>
         )}
+        {worldId !== 'hub' && (
+          <button className="holo-btn sm:col-span-2" style={css('#00f0ff')} onClick={() => useGame.getState().travel('hub', worldId === 'race' ? 'fromRace' : worldId === 'arcade' ? 'default' : 'fromTrials')} data-testid="pause-hub">
+            ⌂ Return to OASIS Prime
+          </button>
+        )}
+        {worldId === 'race' && (
+          <button className="holo-btn sm:col-span-2" style={css('#3dff8b')} onClick={() => { useRace.getState().reset(); open({ type: 'garage' }) }}>
+            Restart race / garage
+          </button>
+        )}
+        <button className="holo-btn" onClick={() => open({ type: 'journal' })}>✎ Journal</button>
         <button className="holo-btn" style={css('#ff2bd6')} onClick={() => useGame.setState({ phase: 'title', overlay: null })}>
           ⏏ Exit to title
         </button>
@@ -133,6 +146,8 @@ export function InventoryPanel({ close }: { close: () => void }) {
   const equip = useGame((s) => s.equipItem)
   const wallet = useGame((s) => s.progress.wallet)
   const [sel, setSel] = useState<string | null>(items[0] ?? null)
+  const vehicles = useGame((s) => s.progress.vehicles)
+  const current = useGame((s) => s.progress.vehicle)
   const def = sel ? ITEMS[sel] : null
   const equipped = def?.equip && avatar ? avatar[def.equip.slot] === def.equip.value : false
   return (
@@ -176,8 +191,29 @@ export function InventoryPanel({ close }: { close: () => void }) {
           )}
         </div>
       </div>
+      <div className="mt-4">
+        <div className="mb-2 font-display text-[0.65rem] uppercase tracking-[0.25em] text-violet">Garage</div>
+        <div className="grid grid-cols-3 gap-2">
+          {VEHICLES.map((v) => {
+            const own = vehicles.includes(v.id)
+            return (
+              <div key={v.id} className={`border p-2 text-center text-[0.7rem] ${own ? 'border-white/20 bg-white/5' : 'border-white/10 bg-black/30 opacity-50'}`}>
+                <div className="font-display text-[0.75rem]" style={{ color: own ? v.color : '#666' }}>{v.name}</div>
+                <div className="text-white/50">{own ? (current === v.id ? 'selected' : 'owned') : v.unlock}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </Panel>
   )
+}
+
+export function xpPct(xp: number) {
+  const l = levelFor(xp)
+  const a = LEVEL_XP[l - 1] ?? 0
+  const b = LEVEL_XP[l] ?? a + 1000
+  return Math.min(100, ((xp - a) / (b - a)) * 100)
 }
 
 export function ProfilePanel({ close }: { close: () => void }) {
@@ -189,6 +225,15 @@ export function ProfilePanel({ close }: { close: () => void }) {
       <div className="flex flex-col gap-5 sm:flex-row" data-testid="profile">
         <div className="flex flex-col items-center gap-3">
           <AvatarBadge avatar={avatar} size={140} />
+          <div className="w-40">
+            <div className="flex justify-between font-mono text-[0.65rem] text-white/60">
+              <span>LEVEL {levelFor(p.xp)}</span>
+              <span>{p.xp} XP</span>
+            </div>
+            <div className="mt-1 h-1.5 bg-white/10">
+              <div className="h-full bg-cyan" style={{ width: `${xpPct(p.xp)}%` }} />
+            </div>
+          </div>
           <button className="holo-btn" style={css(avatar.accent)} onClick={() => useGame.getState().openCreator('world')}>
             ✎ Edit avatar
           </button>
@@ -203,7 +248,15 @@ export function ProfilePanel({ close }: { close: () => void }) {
           <Stat label="Best circuit" value={p.bestRace ? `${p.bestRace.toFixed(2)}s` : '—'} accent="#3dff8b" />
           <Stat label="Serpent best" value={`${p.highScores.serpent ?? 0}`} accent="#3dff8b" />
           <Stat label="Lancer best" value={`${p.highScores.lancer ?? 0}`} accent="#ff2bd6" />
-          <Stat label="Founder’s Gate" value={p.gateOpened ? '1/3 locks' : 'sealed'} accent="#ff9a4d" />
+          <Stat label="Founder’s Gate" value={`${p.locks}/3 locks`} accent="#ff9a4d" />
+          <Stat label="Level" value={`${levelFor(p.xp)} · ${p.xp} XP`} accent="#00f0ff" />
+          <Stat label="Grand Prix best" value={p.gpBest ? `${p.gpBest.toFixed(2)}s` : '—'} accent="#3dff8b" />
+          <Stat label="Races finished" value={`${p.gpFinishes}`} accent="#3dff8b" />
+          <Stat label="Trials" value={`${p.trials.length}/3`} accent="#ffe14d" />
+          <Stat label="Founder’s marks" value={`${p.glyphs.length}/${GLYPHS.length}`} accent="#ffe14d" />
+          <Stat label="Platformer best" value={`${p.highScores.glitchhop ?? 0}`} accent="#3dff8b" />
+          <Stat label="Arena best" value={`${p.highScores.gladiator ?? 0} waves`} accent="#ff4d4d" />
+          <Stat label="Vehicles" value={`${p.vehicles.length}/${VEHICLES.length}`} accent="#9d4dff" />
         </div>
       </div>
     </Panel>
@@ -349,8 +402,10 @@ export function ShopPanel({ close }: { close: () => void }) {
 
 export function GatePanel({ close }: { close: () => void }) {
   const p = useGame((s) => s.progress)
-  const openGate = useGame((s) => s.openGate)
-  const hasKey = p.items.includes('copper-key')
+  const insertKey = useGame((s) => s.insertKey)
+  const next = p.locks < 3 ? LOCK_KEYS[p.locks] : null
+  const hasKey = next ? p.items.includes(next) : false
+  const colors = ['#ff9a4d', '#4d7cff', '#e0e0ff']
   return (
     <Panel title="THE FOUNDER’S GATE" kicker="the founder’s contest" accent="#ff9a4d" onClose={close}>
       <div data-testid="gate">
@@ -360,26 +415,27 @@ export function GatePanel({ close }: { close: () => void }) {
           ))}
         </blockquote>
         <div className="mt-5 grid grid-cols-3 gap-2">
-          {['Copper', 'Second', 'Third'].map((n, i) => {
-            const open = i === 0 && p.gateOpened
+          {TRIALS.map((t, i) => {
+            const open = p.locks > i
             return (
-              <div key={n} className={`border p-3 text-center ${open ? 'border-ember bg-ember/15' : 'border-white/10 bg-black/30'}`}>
-                <div className="font-display text-xl" style={{ color: open ? '#ff9a4d' : '#665a80' }}>{['I', 'II', 'III'][i]}</div>
-                <div className="text-[0.65rem] uppercase tracking-widest text-white/60">{open ? 'Released' : i === 0 ? 'Copper lock' : 'Sealed'}</div>
+              <div key={t.id} className={`border p-3 text-center ${open ? 'bg-white/5' : 'border-white/10 bg-black/30'}`} style={{ borderColor: open ? colors[i] : undefined }}>
+                <div className="font-display text-xl" style={{ color: open ? colors[i] : '#665a80' }}>{['I', 'II', 'III'][i]}</div>
+                <div className="text-[0.62rem] uppercase tracking-widest text-white/60">{open ? `opens ${t.name}` : `${ITEMS[LOCK_KEYS[i]].name}`}</div>
+                {p.trials.includes(t.id) && <div className="mt-1 text-[0.6rem] text-lime">trial complete</div>}
               </div>
             )
           })}
         </div>
-        <div className="mt-5">
-          {p.gateOpened ? (
-            <p className="text-[0.8rem] text-lime">The first lock is released. The remaining locks await signals that have not yet been broadcast.</p>
-          ) : hasKey ? (
-            <button className="holo-btn primary w-full" style={css('#ff9a4d')} onClick={openGate} data-testid="insert-key">
-              ⚿ Insert the Copper Key
+        <div className="mt-5 space-y-2 text-[0.8rem]">
+          {next && hasKey && (
+            <button className="holo-btn primary w-full" style={{ '--accent': colors[p.locks] } as CSSProperties} onClick={() => insertKey()} data-testid="insert-key">
+              ⚿ Insert the {ITEMS[next].name}
             </button>
-          ) : (
-            <p className="text-[0.8rem] text-white/55">The first lock is copper. You do not have a key that fits — yet.</p>
           )}
+          {next && !hasKey && <p className="text-white/55">Lock {['I', 'II', 'III'][p.locks]} needs the {ITEMS[next].name}. {p.locks === 0 ? 'Find it in the Arcade District.' : `It is the reward of ${TRIALS[p.locks - 1].name}.`}</p>}
+          {p.locks >= 1 && p.gpFinishes === 0 && <p className="text-lime">The trial portals behind the gate only open for Grand Prix finishers. Race in Velocity City (portal south of the spawn).</p>}
+          {p.locks >= 1 && <p className="text-white/60">Trial portals stand behind the gate. Walk around it.</p>}
+          {!next && <p className="text-lime">All three locks are open.</p>}
         </div>
       </div>
     </Panel>
@@ -395,10 +451,14 @@ export function ScoresPanel({ close }: { close: () => void }) {
           <div key={c.id} className="flex justify-between border border-white/10 bg-black/30 px-4 py-3">
             <span style={{ color: c.color }}>{c.title}</span>
             <span className="text-white">
-              {String(p.highScores[c.id] ?? 0).padStart(5, '0')} <span className="text-white/40">/ target {c.target}</span>
+              {String(p.highScores[c.id] ?? 0).padStart(5, '0')} <span className="text-white/40">/ target {c.targetLabel ?? c.target}</span>
             </span>
           </div>
         ))}
+        <div className="flex justify-between border border-white/10 bg-black/30 px-4 py-3">
+          <span className="text-lime">GRAND PRIX</span>
+          <span className="text-white">{p.gpBest ? `${p.gpBest.toFixed(2)}s` : '—'}</span>
+        </div>
         <div className="flex justify-between border border-white/10 bg-black/30 px-4 py-3">
           <span className="text-lime">VELOCITY CIRCUIT</span>
           <span className="text-white">

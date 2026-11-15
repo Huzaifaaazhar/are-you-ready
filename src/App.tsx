@@ -14,6 +14,8 @@ import { TouchControls } from './ui/TouchControls'
 import { WarpTransition } from './ui/WarpTransition'
 import { LoadingVeil } from './ui/LoadingVeil'
 import { WORLDS } from './game/world/registry'
+import { useTrialHud } from './game/world/trials/common'
+import { useRace } from './store/useRace'
 
 function useIsTouch() {
   const [coarse, setCoarse] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches)
@@ -38,21 +40,32 @@ function useControls(touch: boolean) {
       const g = useGame.getState()
       if (g.phase !== 'world') return
       if (e.code === 'Escape') {
-        if (g.overlay) {
-          if (g.overlay.type === 'settings') g.openOverlay({ type: 'pause' })
-          else g.closeOverlay()
+        const o = g.overlay
+        if (o) {
+          if (o.type === 'settings') g.openOverlay({ type: 'pause' })
+          else if (o.type === 'garage' || o.type === 'race-result') g.openOverlay({ type: 'pause' })
+          else if (o.type === 'trial-result' && !o.success) {
+            g.closeOverlay()
+            useTrialHud.getState().retry?.()
+          } else g.closeOverlay()
         } else g.openOverlay({ type: 'pause' })
         return
       }
       if (g.overlay || g.transition.active) {
-        if ((e.code === 'KeyI' && g.overlay?.type === 'inventory') || (e.code === 'KeyM' && g.overlay?.type === 'map') || (e.code === 'KeyP' && g.overlay?.type === 'pause')) g.closeOverlay()
+        if ((e.code === 'KeyI' && g.overlay?.type === 'inventory') || (e.code === 'KeyM' && g.overlay?.type === 'map') || (e.code === 'KeyJ' && g.overlay?.type === 'journal') || (e.code === 'KeyP' && g.overlay?.type === 'pause')) g.closeOverlay()
         return
       }
-      if (e.code === 'KeyE' || e.code === 'Enter') triggerInteract()
+      if ((e.code === 'KeyE' || e.code === 'Enter') && g.worldId !== 'race') triggerInteract()
       else if (e.code === 'KeyI' || e.code === 'Tab') {
         e.preventDefault()
         g.openOverlay({ type: 'inventory' })
       } else if (e.code === 'KeyM') g.openOverlay({ type: 'map' })
+      else if (e.code === 'KeyJ') g.openOverlay({ type: 'journal' })
+      else if (e.code === 'KeyG' && g.worldId === 'race') {
+        const st = useRace.getState().status
+        if (st === 'garage') g.openOverlay({ type: 'garage' })
+        if (st === 'finished') g.openOverlay({ type: 'race-result' })
+      }
       else if (e.code === 'KeyP') g.openOverlay({ type: 'pause' })
     }
     window.addEventListener('keydown', onKey)
