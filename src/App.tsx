@@ -8,6 +8,8 @@ import { setAudioSettings, unlockAudio } from './game/systems/audio'
 import { Boot } from './ui/Boot'
 import { Title } from './ui/Title'
 import { Creator } from './ui/Creator'
+import { Profile } from './ui/Profile'
+import { WorldErrorPanel } from './ui/WorldErrorPanel'
 import { HUD } from './ui/HUD'
 import { Overlays } from './ui/Overlays'
 import { TouchControls } from './ui/TouchControls'
@@ -15,6 +17,7 @@ import { WarpTransition } from './ui/WarpTransition'
 import { LoadingVeil } from './ui/LoadingVeil'
 import { WORLDS } from './game/world/registry'
 import { useTrialHud } from './game/world/trials/common'
+import { retryStage } from './game/world/showdown/state'
 import { useRace } from './store/useRace'
 
 function useIsTouch() {
@@ -44,6 +47,10 @@ function useControls(touch: boolean) {
         if (o) {
           if (o.type === 'settings') g.openOverlay({ type: 'pause' })
           else if (o.type === 'garage' || o.type === 'race-result') g.openOverlay({ type: 'pause' })
+          else if (o.type === 'sd-fail') {
+            g.closeOverlay()
+            retryStage()
+          } else if (o.type === 'prep') g.openOverlay({ type: 'pause' })
           else if (o.type === 'trial-result' && !o.success) {
             g.closeOverlay()
             useTrialHud.getState().retry?.()
@@ -52,7 +59,7 @@ function useControls(touch: boolean) {
         return
       }
       if (g.overlay || g.transition.active) {
-        if ((e.code === 'KeyI' && g.overlay?.type === 'inventory') || (e.code === 'KeyM' && g.overlay?.type === 'map') || (e.code === 'KeyJ' && g.overlay?.type === 'journal') || (e.code === 'KeyP' && g.overlay?.type === 'pause')) g.closeOverlay()
+        if ((e.code === 'KeyL' && g.overlay?.type === 'quests') || (e.code === 'KeyI' && g.overlay?.type === 'inventory') || (e.code === 'KeyM' && g.overlay?.type === 'map') || (e.code === 'KeyJ' && g.overlay?.type === 'journal') || (e.code === 'KeyP' && g.overlay?.type === 'pause')) g.closeOverlay()
         return
       }
       if ((e.code === 'KeyE' || e.code === 'Enter') && g.worldId !== 'race') triggerInteract()
@@ -61,6 +68,7 @@ function useControls(touch: boolean) {
         g.openOverlay({ type: 'inventory' })
       } else if (e.code === 'KeyM') g.openOverlay({ type: 'map' })
       else if (e.code === 'KeyJ') g.openOverlay({ type: 'journal' })
+      else if (e.code === 'KeyL') g.openOverlay({ type: 'quests' })
       else if (e.code === 'KeyG' && g.worldId === 'race') {
         const st = useRace.getState().status
         if (st === 'garage') g.openOverlay({ type: 'garage' })
@@ -141,7 +149,8 @@ export default function App() {
   const touch = touchSetting === 'on' || (touchSetting === 'auto' && coarse)
   useControls(touch)
 
-  useEffect(() => setAudioSettings(muted, volume), [muted, volume])
+  const mix = useGame((s) => s.settings)
+  useEffect(() => setAudioSettings(muted, volume, { music: mix.musicVolume, sfx: mix.sfxVolume, ambience: mix.ambienceVolume, ambienceOn: mix.ambience }), [muted, volume, mix.musicVolume, mix.sfxVolume, mix.ambienceVolume, mix.ambience])
   // Warm the code-split chunk for the saved world while the intro plays.
   useEffect(() => {
     if (phase === 'boot') return
@@ -156,6 +165,7 @@ export default function App() {
         {phase === 'boot' && <Boot key="boot" />}
         {phase === 'title' && <Title key="title" />}
         {phase === 'creator' && <Creator key="creator" />}
+        {phase === 'profile' && <Profile key="profile" />}
       </AnimatePresence>
       {phase === 'world' && (
         <>
@@ -165,6 +175,7 @@ export default function App() {
         </>
       )}
       <LoadingVeil />
+      <WorldErrorPanel />
       <WarpTransition />
       <div className="scanlines opacity-40" />
     </>

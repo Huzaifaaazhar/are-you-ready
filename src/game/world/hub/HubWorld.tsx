@@ -16,6 +16,8 @@ import { SkyTraffic } from '../common/SkyTraffic'
 import { neonMaterial, surfaceMaterial } from '../common/materials'
 import { CentralTower } from './CentralTower'
 import { FounderGate, PlinthGlyph } from './FounderGate'
+import { CoinRain } from './HubEvents'
+import { Kiosk } from '../common/Kiosk'
 import { MonumentModel } from '../common/Monument'
 import { AtlasObservatory, HallOfRecords, IdentityNexus, ServiceKiosks } from './HubStations'
 import { HUB_LAYOUT, HUB_POS, HUB_RADIUS, SKY_PLATFORM, STEPPING_STONES } from './layout'
@@ -162,16 +164,58 @@ function MonumentPlinth() {
   )
 }
 
+/** Portals to the expansion worlds and the final showdown. */
+function ExpansionPortals() {
+  const incursion = useGame((s) => s.progress.items.includes('founder-egg'))
+  const ended = useGame((s) => s.progress.endings.length > 0)
+  const face = (p: [number, number, number]) => Math.atan2(-p[0], -p[2])
+  return (
+    <>
+      <Portal id="portal-city" position={HUB_POS.cityPortal} rotationY={face(HUB_POS.cityPortal)} label="NEON HEIGHTS" sublabel="vertical city · rooftops · sigils" color="#ff2bd6" color2="#00f0ff" target="city" />
+      <Portal id="portal-fantasy" position={HUB_POS.fantasyPortal} rotationY={face(HUB_POS.fantasyPortal)} label="AETHER ISLES" sublabel="castles · ruins · floating islands" color="#ffb070" color2="#9fe8ff" target="fantasy" />
+      <Portal id="portal-wasteland" position={HUB_POS.wastelandPortal} rotationY={face(HUB_POS.wastelandPortal)} label="NULL SECTOR" sublabel="digital wasteland · hazards · lost data" color="#ff2040" color2="#3dff8b" target="wasteland" />
+      {incursion && (
+        <Portal id="portal-showdown" position={HUB_POS.showdownPortal} rotationY={face(HUB_POS.showdownPortal)} label="NULL CITADEL" sublabel={ended ? 'final quest · replay' : 'the final quest'} color="#ff2040" color2="#ffffff" target="showdown" />
+      )}
+      <Kiosk
+        id="exchange"
+        position={HUB_POS.exchange}
+        rotationY={face(HUB_POS.exchange) + Math.PI}
+        title="OASIS EXCHANGE"
+        subtitle="cosmetics · paints · trinkets"
+        prompt="Browse the OASIS Exchange"
+        color="#ffe14d"
+        onInteract={() => useGame.getState().openOverlay({ type: 'market' })}
+      />
+    </>
+  )
+}
+
+/** After the Egg is claimed, the Consortium's Null Protocol stains the sky. */
+function Incursion() {
+  const on = useGame((s) => s.progress.items.includes('founder-egg') && s.progress.endings.length === 0)
+  if (!on) return null
+  return (
+    <>
+      <Particles count={300} area={[120, 40, 120]} color="#ff2040" color2="#ffffff" size={5} rise={1.2} />
+      <NeonText position={[-14, 9.5, 40]} rotation={[0, Math.atan2(14, -40), 0]} fontSize={0.6} color="#ff2040">
+        ⚠ NULL PROTOCOL DETECTED
+      </NeonText>
+    </>
+  )
+}
+
 export default function HubWorld() {
   const quality = useGame((s) => s.settings.quality)
+  const incursion = useGame((s) => s.progress.items.includes('founder-egg') && s.progress.endings.length === 0)
   return (
     <group>
-      <SkyDome top="#04010d" horizon="#3d0f70" bottom="#05010f" />
+      <SkyDome top={incursion ? '#120004' : '#04010d'} horizon={incursion ? '#7a0a1a' : '#3d0f70'} bottom="#05010f" />
       <Planet />
       <GridFloor size={560} fade={240} color="#3a1cff" color2="#00f0ff" />
       <Boundary />
-      <Skyline count={quality === 'high' ? 260 : 140} />
-      <SkyTraffic count={quality === 'high' ? 80 : 30} />
+      <Skyline count={quality === 'high' ? 260 : quality === 'medium' ? 180 : 100} />
+      <SkyTraffic count={quality === 'high' ? 80 : quality === 'medium' ? 50 : 25} />
       <FloatingIslands />
       <Billboards />
       <Particles count={quality === 'high' ? 900 : 300} area={[130, 35, 130]} />
@@ -186,6 +230,9 @@ export default function HubWorld() {
         color2="#ffe14d"
         target="arcade"
       />
+      <ExpansionPortals />
+      <Incursion />
+      <CoinRain />
       <FounderGate />
       <PlinthGlyph />
       <MonumentPlinth />

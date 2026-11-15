@@ -5,6 +5,9 @@ import { useGame } from '../../store/useGame'
 import { Player } from '../player/Player'
 import { WORLDS } from './registry'
 import { playMusic } from '../systems/audio'
+import { ambience } from '../systems/ambience'
+import { PresenceLayer } from '../social/PresenceLayer'
+import { WorldErrorBoundary } from './WorldErrorBoundary'
 
 /**
  * Loads exactly one world at a time (code-split via React.lazy) inside its own physics world,
@@ -22,7 +25,9 @@ export function WorldRoot() {
 
   useEffect(() => {
     playMusic(v.music)
-  }, [v.music])
+    ambience.play(v.ambience)
+  }, [v.music, v.ambience])
+  useEffect(() => () => ambience.play('off'), [])
 
   return (
     <>
@@ -33,7 +38,10 @@ export function WorldRoot() {
       <directionalLight position={[20, 40, 15]} intensity={1.1} color="#d8d0ff" />
       <Suspense fallback={<WorldLoading />}>
         <Physics key={`${worldId}-${epoch}`} gravity={[0, v.gravity ?? -22, 0]} paused={paused} timeStep={1 / 60}>
-          <World />
+          <WorldErrorBoundary worldId={worldId}>
+            <World />
+            {def.onFoot && <PresenceLayer world={worldId} />}
+          </WorldErrorBoundary>
           {def.onFoot && <Player spawn={spawn} />}
         </Physics>
       </Suspense>

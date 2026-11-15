@@ -7,11 +7,17 @@ type Sfx =
   | 'blip' | 'select' | 'coin' | 'portal' | 'achievement' | 'error' | 'boot' | 'jump'
   | 'secret' | 'checkpoint' | 'countdown' | 'go' | 'unlock' | 'eat' | 'shoot' | 'explode' | 'hurt'
 
-export type MusicPreset = 'title' | 'hub' | 'arcade' | 'arcade-synthwave' | 'arcade-chip' | 'race' | 'past' | 'present' | 'future' | 'off'
+export type MusicPreset = 'title' | 'hub' | 'arcade' | 'arcade-synthwave' | 'arcade-chip' | 'race' | 'past' | 'present' | 'future' | 'city' | 'fantasy' | 'wasteland' | 'showdown' | 'finale' | 'off'
 
 let ctx: AudioContext | null = null
 let master: GainNode | null = null
 let musicBus: GainNode | null = null
+let sfxBus: GainNode | null = null
+let ambBus: GainNode | null = null
+let musicVol = 0.6
+let sfxVol = 0.9
+let ambVol = 0.6
+let ambOn = true
 let musicNodes: { stop: () => void } | null = null
 let currentMusic: MusicPreset = 'off'
 let muted = false
@@ -27,8 +33,14 @@ function ensure(): AudioContext | null {
     master.gain.value = muted ? 0 : volume
     master.connect(ctx.destination)
     musicBus = ctx.createGain()
-    musicBus.gain.value = 0.32
+    musicBus.gain.value = 0.32 * musicVol
     musicBus.connect(master)
+    sfxBus = ctx.createGain()
+    sfxBus.gain.value = sfxVol
+    sfxBus.connect(master)
+    ambBus = ctx.createGain()
+    ambBus.gain.value = ambOn ? ambVol : 0
+    ambBus.connect(master)
   }
   if (ctx.state === 'suspended') void ctx.resume()
   return ctx
@@ -39,15 +51,31 @@ export function unlockAudio() {
   ensure()
 }
 
-export function setAudioSettings(isMuted: boolean, vol: number) {
+export function setAudioSettings(isMuted: boolean, vol: number, mix?: { music: number; sfx: number; ambience: number; ambienceOn: boolean }) {
   muted = isMuted
   volume = vol
-  if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 0.05)
+  if (mix) {
+    musicVol = mix.music
+    sfxVol = mix.sfx
+    ambVol = mix.ambience
+    ambOn = mix.ambienceOn
+  }
+  if (!ctx) return
+  master?.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 0.05)
+  musicBus?.gain.setTargetAtTime(0.32 * musicVol, ctx.currentTime, 0.05)
+  sfxBus?.gain.setTargetAtTime(sfxVol, ctx.currentTime, 0.05)
+  ambBus?.gain.setTargetAtTime(ambOn ? ambVol : 0, ctx.currentTime, 0.2)
+}
+
+/** Shared audio graph for the ambience module. */
+export function audioGraph() {
+  const c = ensure()
+  return c && ambBus ? { ctx: c, bus: ambBus } : null
 }
 
 function tone(freq: number, dur: number, type: OscillatorType = 'square', gain = 0.15, slideTo?: number, delay = 0) {
   const c = ensure()
-  if (!c || !master) return
+  if (!c || !sfxBus) return
   const t = c.currentTime + delay
   const o = c.createOscillator()
   const g = c.createGain()
@@ -57,14 +85,14 @@ function tone(freq: number, dur: number, type: OscillatorType = 'square', gain =
   g.gain.setValueAtTime(0.0001, t)
   g.gain.exponentialRampToValueAtTime(gain, t + 0.01)
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
-  o.connect(g).connect(master)
+  o.connect(g).connect(sfxBus)
   o.start(t)
   o.stop(t + dur + 0.05)
 }
 
 function noise(dur: number, gain = 0.2, filterFreq = 1200, delay = 0) {
   const c = ensure()
-  if (!c || !master) return
+  if (!c || !sfxBus) return
   const t = c.currentTime + delay
   const buf = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate)
   const d = buf.getChannelData(0)
@@ -76,7 +104,7 @@ function noise(dur: number, gain = 0.2, filterFreq = 1200, delay = 0) {
   f.frequency.value = filterFreq
   const g = c.createGain()
   g.gain.value = gain
-  src.connect(f).connect(g).connect(master)
+  src.connect(f).connect(g).connect(sfxBus)
   src.start(t)
 }
 
@@ -123,6 +151,11 @@ const MUSIC: Record<Exclude<MusicPreset, 'off'>, MusicDef> = {
   past: { chords: [[48, 55, 60, 64], [45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 59]], bpm: 66, wave: 'triangle', arp: true, bass: false, cutoff: 1100 },
   present: { chords: [[50, 53, 57, 60], [50, 53, 56, 60], [48, 51, 55, 58], [47, 50, 53, 57]], bpm: 100, wave: 'square', arp: false, bass: true, cutoff: 900 },
   future: { chords: [[52, 59, 64, 71], [57, 64, 69, 72], [55, 62, 67, 71], [60, 67, 72, 76]], bpm: 90, wave: 'sine', arp: true, bass: true, cutoff: 3200 },
+  city: { chords: [[45, 52, 55, 60], [43, 50, 53, 58], [41, 48, 52, 57], [40, 47, 50, 55]], bpm: 92, wave: 'sawtooth', arp: true, bass: true, cutoff: 1400 },
+  fantasy: { chords: [[50, 57, 62, 66], [55, 62, 67, 71], [52, 59, 64, 67], [57, 64, 69, 73]], bpm: 72, wave: 'triangle', arp: true, bass: false, cutoff: 2600 },
+  wasteland: { chords: [[38, 45, 48, 51], [37, 44, 47, 50], [38, 45, 48, 53], [36, 43, 46, 49]], bpm: 60, wave: 'sawtooth', arp: false, bass: true, cutoff: 600 },
+  showdown: { chords: [[40, 47, 52, 55], [41, 48, 53, 56], [38, 45, 50, 53], [43, 50, 55, 58]], bpm: 132, wave: 'sawtooth', arp: true, bass: true, cutoff: 2000 },
+  finale: { chords: [[48, 55, 60, 64], [53, 60, 65, 69], [55, 62, 67, 71], [52, 59, 64, 67]], bpm: 70, wave: 'triangle', arp: true, bass: true, cutoff: 2400 },
   'arcade-chip': { chords: [[60, 64, 67, 72], [65, 69, 72, 77], [67, 71, 74, 79], [64, 67, 71, 76]], bpm: 140, wave: 'square', arp: true, bass: false, cutoff: 3500 },
 }
 
@@ -249,7 +282,7 @@ export const engineSound = (() => {
       gain.gain.value = 0.0001
       osc.connect(filter)
       osc2.connect(filter)
-      filter.connect(gain).connect(master)
+      filter.connect(gain).connect(sfxBus ?? master)
       osc.start()
       osc2.start()
     },

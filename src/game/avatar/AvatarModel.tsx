@@ -21,6 +21,16 @@ const BODY_W = { slim: 0.88, standard: 1, bulky: 1.22 } as const
 const LIMB_W = { slim: 0.9, standard: 1, bulky: 1.25 } as const
 const FACE_Z = { round: 0.158, oval: 0.15, angular: 0.153, bot: 0.153 } as const
 
+const glowCache = new Map<string, MeshBasicMaterial>()
+function glowFor(hex: string) {
+  let g = glowCache.get(hex)
+  if (!g) {
+    g = new MeshBasicMaterial({ color: new Color(hex).multiplyScalar(2.6), toneMapped: false })
+    glowCache.set(hex, g)
+  }
+  return g
+}
+
 function useMaterials(c: AvatarConfig) {
   const mats = useMemo(() => {
     const std = (color: string, rough = 0.6, metal = 0.1) => new MeshStandardMaterial({ color, roughness: rough, metalness: metal })
@@ -61,6 +71,7 @@ export function AvatarModel({ config: c, motion, showcase }: Props) {
   const cape = useRef<Group>(null)
   const crown = useRef<Group>(null)
   const drones = useRef<Group>(null)
+  const aura = useRef<Group>(null)
   const phase = useRef(0)
 
   useFrame((state, dt) => {
@@ -106,6 +117,14 @@ export function AvatarModel({ config: c, motion, showcase }: Props) {
     if (halo.current) halo.current.rotation.z = t * 1.5
     if (crown.current) crown.current.rotation.y = t * 0.8
     if (drones.current) drones.current.rotation.y = t * 2.2
+    if (aura.current) {
+      aura.current.rotation.y = t * (c.aura === 'glitch' ? 0 : 0.9)
+      aura.current.children.forEach((ch, i) => {
+        if (c.aura === 'ember') ch.position.y = ((t * 0.6 + i * 0.13) % 1) * 1.2
+        else if (c.aura === 'frost') ch.position.y = 0.2 + Math.sin(t * 1.5 + i) * 0.15 + 0.3
+        else ch.position.set(Math.cos(i * 1.7) * 0.55 + (Math.random() - 0.5) * 0.04, 0.1 + ((i * 0.37 + Math.floor(t * 6) * 0.11) % 1) * 1.4, Math.sin(i * 1.7) * 0.55)
+      })
+    }
     const flicker = 0.8 + Math.sin(t * 40) * 0.2 + (grounded ? 0 : 0.6)
     if (flameL.current) flameL.current.scale.y = flicker
     if (flameR.current) flameR.current.scale.y = flicker
@@ -119,7 +138,7 @@ export function AvatarModel({ config: c, motion, showcase }: Props) {
 
   const hipY = 0.92
   const shoulderX = 0.22 * bw + 0.08
-  const torsoMat = c.outfit === 'jacket' || c.outfit === 'archivist' ? m.secondary : m.primary
+  const torsoMat = c.outfit === 'jacket' || c.outfit === 'archivist' || c.outfit === 'legend' ? m.secondary : m.primary
   const shoulders = c.armour === 'pauldrons' || c.armour === 'full' || c.armour === 'vanguard'
   const chest = c.armour === 'chestplate' || c.armour === 'full' || c.armour === 'vanguard'
   const helmet = c.headGear === 'racer-helmet'
@@ -190,8 +209,26 @@ export function AvatarModel({ config: c, motion, showcase }: Props) {
     </group>
   )
 
+  const auraColor = c.aura === 'ember' ? '#ff9a4d' : c.aura === 'frost' ? '#9fe8ff' : '#3dff8b'
   return (
     <group ref={root} scale={c.height}>
+      {c.aura && c.aura !== 'none' && (
+        <>
+          <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={m.accentSoft}>
+            <ringGeometry args={[0.45, 0.6, 32]} />
+          </mesh>
+          <group ref={aura}>
+            {Array.from({ length: 10 }, (_, i) => {
+              const a = (i / 10) * Math.PI * 2
+              return (
+                <mesh key={i} position={[Math.cos(a) * 0.5, 0.3, Math.sin(a) * 0.5]} material={glowFor(auraColor)}>
+                  {c.aura === 'frost' ? <octahedronGeometry args={[0.04, 0]} /> : c.aura === 'glitch' ? <boxGeometry args={[0.06, 0.06, 0.06]} /> : <sphereGeometry args={[0.03, 6, 4]} />}
+                </mesh>
+              )
+            })}
+          </group>
+        </>
+      )}
       {leg(1, legL)}
       {leg(-1, legR)}
       <group ref={torso}>
@@ -281,6 +318,34 @@ export function AvatarModel({ config: c, motion, showcase }: Props) {
                 <sphereGeometry args={[0.012, 6, 4]} />
               </mesh>
             ))}
+          </>
+        )}
+        {c.outfit === 'kimono' && (
+          <>
+            <mesh position={[0, hipY - 0.16, 0]} material={m.primary}>
+              <cylinderGeometry args={[0.24 * bw, 0.36 * bw, 0.58, 14, 1, true]} />
+            </mesh>
+            <mesh position={[0, hipY + 0.16, 0]} material={m.accent}>
+              <cylinderGeometry args={[0.235 * bw, 0.235 * bw, 0.07, 16, 1, true]} />
+            </mesh>
+            <mesh position={[0.05, hipY + 0.48, 0.134]} rotation={[0, 0, -0.5]} material={m.secondary}>
+              <boxGeometry args={[0.06, 0.42, 0.01]} />
+            </mesh>
+          </>
+        )}
+        {c.outfit === 'legend' && (
+          <>
+            <mesh position={[0, hipY + 0.42, -0.135]} rotation={[0, Math.PI, 0]} material={m.accent}>
+              <circleGeometry args={[0.09, 5]} />
+            </mesh>
+            {[-1, 1].map((sx) => (
+              <mesh key={sx} position={[0.2 * bw * sx, hipY + 0.6, 0]} material={m.accent}>
+                <boxGeometry args={[0.03, 0.03, 0.28]} />
+              </mesh>
+            ))}
+            <mesh position={[0, hipY + 0.4, 0.13]} material={m.primary}>
+              <boxGeometry args={[0.1 * bw, 0.46, 0.015]} />
+            </mesh>
           </>
         )}
         {c.outfit === 'pixel-suit' &&
@@ -385,6 +450,14 @@ export function AvatarModel({ config: c, motion, showcase }: Props) {
                 </mesh>
               )),
             )}
+          </group>
+        )}
+        {c.backGear === 'hoverboard' && (
+          <group position={[0, hipY + 0.42, -0.2]} rotation={[0, 0, 0.15]}>
+            <RoundedBox args={[0.3, 0.95, 0.05]} radius={0.02} material={m.secondary} />
+            <mesh position={[0, 0, -0.03]} material={m.accent}>
+              <boxGeometry args={[0.32, 0.97, 0.01]} />
+            </mesh>
           </group>
         )}
         {c.backGear === 'drones' && (
@@ -559,6 +632,12 @@ export function AvatarModel({ config: c, motion, showcase }: Props) {
               </mesh>
             </group>
           )}
+          {c.headGear === 'horns' &&
+            [-1, 1].map((sx) => (
+              <mesh key={sx} position={[0.11 * sx, 0.16, -0.01]} rotation={[0, 0, -0.45 * sx]} material={m.accent}>
+                <coneGeometry args={[0.035, 0.2, 8]} />
+              </mesh>
+            ))}
           {c.headGear === 'crown' && (
             <group ref={crown} position={[0, 0.3, 0]}>
               {Array.from({ length: 5 }, (_, i) => {

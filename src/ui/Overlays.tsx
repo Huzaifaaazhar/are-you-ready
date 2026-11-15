@@ -4,6 +4,8 @@ import { ArcadePanel } from './minigames/ArcadePanel'
 import {
   AchievementsPanel, GatePanel, InfoPanel, InventoryPanel, MapPanel, PausePanel, ProfilePanel, ScoresPanel, SettingsPanel, ShopPanel,
 } from './panels/Panels'
+import { DialoguePanel, MarketPanel, QuestLogPanel } from './panels/SocialPanels'
+import { EndingPanel, PrepPanel, SdFailPanel } from './panels/FinalePanels'
 import { CipherPanel, GaragePanel, JournalPanel, MonumentPanel, RaceResultPanel, TrialIntroPanel, TrialResultPanel } from './panels/HuntPanels'
 
 /** Routes the active overlay to its panel. */
@@ -25,6 +27,12 @@ export function Overlays() {
       case 'arcade': el = <ArcadePanel game={overlay.game} close={close} />; break
       case 'info': el = <InfoPanel overlay={overlay} close={close} />; break
       case 'journal': el = <JournalPanel close={close} />; break
+      case 'dialogue': el = <DialoguePanel npc={overlay.npc} close={close} />; break
+      case 'market': el = <MarketPanel close={close} />; break
+      case 'quests': el = <QuestLogPanel close={close} />; break
+      case 'prep': el = <PrepPanel close={close} />; break
+      case 'ending': el = <EndingPanel choice={overlay.choice} close={close} />; break
+      case 'sd-fail': el = <SdFailPanel title={overlay.title} body={overlay.body} close={close} />; break
       case 'cipher': el = <CipherPanel close={close} />; break
       case 'garage': el = <GaragePanel />; break
       case 'race-result': el = <RaceResultPanel />; break
@@ -33,5 +41,5 @@ export function Overlays() {
       case 'trial-result': el = <TrialResultPanel trial={overlay.trial} success={overlay.success} title={overlay.title} body={overlay.body} close={close} />; break
     }
   }
-  return <AnimatePresence mode="wait">{el && <div key={overlay?.type + (overlay?.type === 'info' ? overlay.title : '')}>{el}</div>}</AnimatePresence>
+  return <AnimatePresence mode="wait">{el && <div key={overlay?.type + (overlay?.type === 'info' ? overlay.title : overlay?.type === 'dialogue' ? overlay.npc : '')}>{el}</div>}</AnimatePresence>
 }

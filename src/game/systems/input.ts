@@ -10,6 +10,7 @@ export const input = {
   touchSprint: false,
   touchHandbrake: false,
   jumpQueuedAt: 0,
+  dashQueuedAt: 0,
   look: { dx: 0, dy: 0 },
 }
 
@@ -51,6 +52,7 @@ export function initInput() {
     if (isTypingTarget(e.target)) return
     input.keys.add(e.code)
     if (e.code === 'Space' && !e.repeat) queueJump()
+    if (e.code === 'KeyF' && !e.repeat) input.dashQueuedAt = performance.now()
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault()
   }
   const up = (e: KeyboardEvent) => input.keys.delete(e.code)

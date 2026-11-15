@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import {
-  ARMOUR_OPTIONS, BACKGEAR_OPTIONS, BODY_OPTIONS, EYE_COLORS, FACE_OPTIONS, GLOW_COLORS, HAIR_COLORS, HAIR_OPTIONS, HEADGEAR_OPTIONS,
+  ARMOUR_OPTIONS, AURA_OPTIONS, BACKGEAR_OPTIONS, BODY_OPTIONS, EYE_COLORS, FACE_OPTIONS, GLOW_COLORS, HAIR_COLORS, HAIR_OPTIONS, HEADGEAR_OPTIONS,
   HEAD_OPTIONS, OUTFIT_OPTIONS, PRESETS, SKIN_TONES, SUIT_COLORS, randomAvatar, randomName, sanitizeAvatar, type AvatarConfig, type Option,
 } from '../data/avatar'
 import { ITEMS } from '../data/content'
@@ -34,7 +34,7 @@ function Choices<T extends string>({ options, value, onPick, owned }: { options:
             className="chip"
             aria-pressed={value === o.id}
             disabled={locked}
-            title={locked ? `Locked — redeem the ${ITEMS[o.requires!]?.name} at the Prize Zone in the Arcade District` : o.label}
+            title={locked ? `Locked — earn or buy the ${ITEMS[o.requires!]?.name} to use this` : o.label}
             onClick={() => {
               sfx('blip')
               onPick(o.id)
@@ -272,7 +272,10 @@ export function Creator() {
               <Section label="Back accessory">
                 <Choices options={BACKGEAR_OPTIONS} value={draft.backGear} onPick={set('backGear')} owned={owned} />
               </Section>
-              <p className="text-[0.7rem] text-white/45">🔒 Locked gear is redeemed with OASIS coins at the Prize Zone in the Arcade District.</p>
+              <Section label="Aura">
+                <Choices options={AURA_OPTIONS} value={draft.aura ?? 'none'} onPick={set('aura')} owned={owned} />
+              </Section>
+              <p className="text-[0.7rem] text-white/45">🔒 Locked gear comes from quests, challenges, the OASIS Exchange in the plaza and the Prize Zone in the Arcade District.</p>
             </>
           )}
           {tab === 'Colours' && (

@@ -11,6 +11,7 @@ export function TouchControls() {
   const prompt = useGame((s) => s.prompt)
   const overlay = useGame((s) => s.overlay)
   const driving = useGame((s) => s.worldId === 'race')
+  const canDash = useGame((s) => s.progress.claimedCabinets.includes('gladiator'))
   const stick = useRef<{ id: number; x: number; y: number } | null>(null)
   const look = useRef<{ id: number; x: number; y: number } | null>(null)
   const [knob, setKnob] = useState<{ bx: number; by: number; dx: number; dy: number } | null>(null)
@@ -76,6 +77,19 @@ export function TouchControls() {
         </div>
       )}
       <div className="absolute bottom-8 right-5 flex flex-col items-end gap-3">
+        {canDash && !driving && (
+          <button
+            aria-label="Phase dash"
+            className="holo-btn !h-14 !w-14 !p-0 !text-[0.6rem]"
+            style={{ '--accent': '#9d4dff' } as CSSProperties}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+              input.dashQueuedAt = performance.now()
+            }}
+          >
+            DASH
+          </button>
+        )}
         <button
           aria-label="Interact"
           disabled={!prompt}

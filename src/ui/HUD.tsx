@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { getObjective, useGame } from '../store/useGame'
+import { getAbilities, getObjective, useGame } from '../store/useGame'
 import { WORLDS, TOTAL_COINS } from '../game/world/registry'
 import { RACE_CHECKPOINTS } from '../game/world/hub/layout'
 import { AvatarBadge } from './AvatarBadge'
@@ -117,9 +117,8 @@ function RaceHUD({ touch }: { touch: boolean }) {
 }
 
 function TrialStatus() {
-  const trial = useTrialHud((s) => s.trial)
   const status = useTrialHud((s) => s.status)
-  if (!trial || status.length === 0) return null
+  if (status.length === 0) return null
   return (
     <div className="holo pointer-events-none absolute left-3 top-[150px] px-3 py-2 sm:left-5 sm:top-[110px]" style={{ '--accent': '#ffe14d' } as CSSProperties} data-testid="trial-status">
       {status.map((l) => (
@@ -190,12 +189,15 @@ export function HUD({ touch }: { touch: boolean }) {
   const trialHud = useTrialHud((s) => s.trial)
   const raceStatus = useRace((s) => s.status)
   const obj =
-    worldId === 'race'
+    worldId === 'showdown'
+      ? { title: 'The Null Protocol', detail: useTrialHud.getState().status[0] ?? 'Breach the citadel' }
+      : worldId === 'race'
       ? { title: 'Velocity City Grand Prix', detail: raceStatus === 'racing' ? 'Hit every checkpoint and cross the finish' : raceStatus === 'finished' ? 'Race again, or return to OASIS Prime' : 'Pick a vehicle in the garage and start the race' }
       : trialHud
         ? { title: TRIAL_TEXT[trialHud].title, detail: TRIAL_TEXT[trialHud].objectives[0] }
-        : getObjective(progress, race)
+        : getObjective(progress, race, worldId)
   const level = levelFor(progress.xp)
+  const abilities = getAbilities(progress)
   const driving = worldId === 'race'
   const layout = WORLDS[worldId].layout
   if (!avatar) return null
@@ -203,7 +205,7 @@ export function HUD({ touch }: { touch: boolean }) {
     <div className="pointer-events-none fixed inset-0 z-20 select-none" data-testid="hud">
       {/* player card */}
       <div className="holo pointer-events-auto absolute left-3 top-[60px] flex max-w-[calc(100vw-24px)] items-center gap-3 py-2 pl-2 pr-4 sm:left-5 sm:top-5" style={{ '--accent': avatar.accent } as CSSProperties}>
-        <button onClick={() => open({ type: 'profile' })} aria-label="Open profile" className="cursor-pointer">
+        <button onClick={() => useGame.getState().openProfile()} aria-label="Open profile" className="cursor-pointer" data-testid="profile-btn">
           <AvatarBadge avatar={avatar} size={44} />
         </button>
         <div className="min-w-0 sm:min-w-[110px]">
@@ -241,6 +243,9 @@ export function HUD({ touch }: { touch: boolean }) {
           </button>
           <button className="holo-btn pointer-events-auto !px-3 !py-1.5" onClick={() => open({ type: 'journal' })} aria-label="Journal" data-testid="journal-btn">
             ✎ {!touch && <span className="kbd ml-1">J</span>}
+          </button>
+          <button className="holo-btn pointer-events-auto !px-3 !py-1.5" onClick={() => open({ type: 'quests' })} aria-label="Quests" data-testid="quests-btn">
+            ✓ {!touch && <span className="kbd ml-1">L</span>}
           </button>
           <button className="holo-btn pointer-events-auto !px-3 !py-1.5" onClick={() => open({ type: 'map' })} aria-label="Map">
             ⌖ {!touch && <span className="kbd ml-1">M</span>}
@@ -285,7 +290,14 @@ export function HUD({ touch }: { touch: boolean }) {
           <span className="kbd">W</span>
           <span className="kbd">A</span>
           <span className="kbd">S</span>
-          <span className="kbd">D</span> move · <span className="kbd">Space</span> jump · <span className="kbd">Shift</span> sprint · <span className="kbd">E</span> interact
+          <span className="kbd">D</span> move · <span className="kbd">Space</span> jump · <span className="kbd">Shift</span> sprint · <span className="kbd">E</span> interact · <span className="kbd">L</span> quests · <span className="kbd">J</span> journal
+          {abilities.phaseDash && (
+            <>
+              {' · '}
+              <span className="kbd">F</span> phase dash
+            </>
+          )}
+          {abilities.doubleJump && ' · double jump'}
         </div>
       )}
     </div>

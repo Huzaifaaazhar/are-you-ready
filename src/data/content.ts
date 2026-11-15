@@ -1,6 +1,6 @@
 /** Static game content: worlds, achievements, items, secrets, prizes and objectives. */
 
-export type WorldId = 'hub' | 'arcade' | 'race' | 'past' | 'present' | 'future'
+export type WorldId = 'hub' | 'arcade' | 'race' | 'past' | 'present' | 'future' | 'city' | 'fantasy' | 'wasteland' | 'showdown'
 export type Vec3 = [number, number, number]
 
 export interface SpawnPoint {
@@ -15,6 +15,11 @@ export interface PointOfInterest {
   x: number
   z: number
   kind: 'portal' | 'challenge' | 'service' | 'secret' | 'game'
+}
+
+export interface RelicDef {
+  id: string
+  pos: Vec3
 }
 
 export interface CoinDef {
@@ -33,6 +38,9 @@ export interface WorldLayout {
   spawns: Record<string, SpawnPoint>
   pois: PointOfInterest[]
   coins: CoinDef[]
+  /** World-specific collectibles (sigils, runes, data shards). */
+  relics?: RelicDef[]
+  relicName?: string
   /** Simple shapes drawn on the map overlay. */
   mapShapes: MapShape[]
 }
@@ -74,7 +82,19 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'glyphs-all', title: 'Cipher Keeper', desc: 'Find all six of the Founder’s hidden marks.', glyph: '❖' },
   { id: 'egg', title: 'The Founder’s Egg', desc: 'Open the Founder’s Vault and claim the Egg.', glyph: '◒' },
   { id: 'level-5', title: 'Seasoned Player', desc: 'Reach player level 5.', glyph: '⬆' },
+  { id: 'city-relics', title: 'Skyline Collector', desc: 'Find all six Neon Sigils in Neon Heights.', glyph: '✧' },
+  { id: 'fantasy-relics', title: 'Rune Seeker', desc: 'Find all five rune stones in the Aether Isles.', glyph: 'ᚱ' },
+  { id: 'wasteland-relics', title: 'Data Diver', desc: 'Recover all five data shards in the Null Sector.', glyph: '◆' },
+  { id: 'social', title: 'Friendly Face', desc: 'Talk to every resident of the OASIS.', glyph: '☻' },
+  { id: 'quests-5', title: 'Helping Hand', desc: 'Complete five side quests.', glyph: '✓' },
+  { id: 'final', title: 'Null Protocol Stopped', desc: 'Defeat the Null Titan.', glyph: '☄' },
+  { id: 'ending-open', title: 'The Open Door', desc: 'Hand the OASIS to its players.', glyph: '⌂' },
+  { id: 'ending-caretaker', title: 'The Caretaker', desc: 'Take the Founder’s chair.', glyph: '♜' },
+  { id: 'ending-rest', title: 'The Rest Day', desc: 'Give the world a day to log off.', glyph: '☾' },
+  { id: 'all-endings', title: 'Every Path', desc: 'See all three endings.', glyph: '∞' },
 ]
+
+export type ItemCategory = 'outfit' | 'accessory' | 'vehicle' | 'collectible' | 'reward' | 'special'
 
 export interface ItemDef {
   id: string
@@ -83,7 +103,9 @@ export interface ItemDef {
   glyph: string
   color: string
   /** If set, this item can be equipped on the avatar. */
-  equip?: { slot: 'headGear' | 'backGear' | 'outfit' | 'armour'; value: string }
+  equip?: { slot: 'headGear' | 'backGear' | 'outfit' | 'armour' | 'aura' | 'paint'; value: string }
+  /** Inventory tab. Derived from equip slot when omitted. */
+  category?: ItemCategory
 }
 
 export const ITEMS: Record<string, ItemDef> = {
@@ -95,7 +117,7 @@ export const ITEMS: Record<string, ItemDef> = {
   'champion-ticket': { id: 'champion-ticket', name: 'Champion Ticket', desc: 'Printed by a cabinet when you beat its target score.', glyph: '✦', color: '#9d4dff' },
   'neon-visor': { id: 'neon-visor', name: 'Neon Visor', desc: 'Cosmetic head gear. Equip from here or in the Identity Forge.', glyph: '▭', color: '#00f0ff', equip: { slot: 'headGear', value: 'neon-visor' } },
   'pixel-cape': { id: 'pixel-cape', name: 'Pixel Cape', desc: 'Cosmetic back gear made of living pixels.', glyph: '▚', color: '#ff2bd6', equip: { slot: 'backGear', value: 'pixel-cape' } },
-  journal: { id: 'journal', name: 'Hunter’s Journal', desc: 'Records every clue, mark and memory you uncover. Press J to read it.', glyph: '✎', color: '#ffe14d' },
+  journal: { id: 'journal', category: 'special', name: 'Hunter’s Journal', desc: 'Records every clue, mark and memory you uncover. Press J to read it.', glyph: '✎', color: '#ffe14d' },
   'cobalt-key': { id: 'cobalt-key', name: 'Cobalt Key', desc: 'Earned in the Founder’s memory archive. Opens the second lock of the Founder’s Gate.', glyph: '⚿', color: '#4d7cff' },
   'prism-key': { id: 'prism-key', name: 'Prism Key', desc: 'Taken from the Consortium Tower. Opens the third lock of the Founder’s Gate.', glyph: '⚿', color: '#e0e0ff' },
   'founder-egg': { id: 'founder-egg', name: 'The Founder’s Egg', desc: 'The prize at the end of the hunt. It hums with every game ever played in the OASIS.', glyph: '◒', color: '#ffe14d' },
@@ -106,6 +128,55 @@ export const ITEMS: Record<string, ItemDef> = {
   'archivist-coat': { id: 'archivist-coat', name: 'Archivist Coat', desc: 'A long coat that smells faintly of old cartridges. Trial I reward.', glyph: '❦', color: '#ff9a4d', equip: { slot: 'outfit', value: 'archivist' } },
   'vanguard-armour': { id: 'vanguard-armour', name: 'Vanguard Armour', desc: 'Armour for those who refused to sell the OASIS. Trial II reward.', glyph: '⛨', color: '#4d7cff', equip: { slot: 'armour', value: 'vanguard' } },
   'founder-crown': { id: 'founder-crown', name: 'Architect’s Crown', desc: 'A crown of floating light. Trial III reward.', glyph: '♛', color: '#ffe14d', equip: { slot: 'headGear', value: 'crown' } },
+  'neon-kimono': { id: 'neon-kimono', name: 'Neon Kimono', desc: 'Flowing sleeves lined with light. Sold at the OASIS Exchange.', glyph: '⛩', color: '#ff2bd6', equip: { slot: 'outfit', value: 'kimono' } },
+  'legend-jacket': { id: 'legend-jacket', name: 'Legend Jacket', desc: 'Old Byte’s own jacket, given to a true arcade legend.', glyph: '★', color: '#ffe14d', equip: { slot: 'outfit', value: 'legend' } },
+  'cyber-horns': { id: 'cyber-horns', name: 'Cyber Horns', desc: 'Two glowing horns. Purely decorative, mostly intimidating.', glyph: '♉', color: '#ff4d4d', equip: { slot: 'headGear', value: 'horns' } },
+  hoverboard: { id: 'hoverboard', name: 'Hoverboard', desc: 'A courier’s board, worn on the back. Reward for running the rooftops.', glyph: '▬', color: '#00f0ff', equip: { slot: 'backGear', value: 'hoverboard' } },
+  'aura-ember': { id: 'aura-ember', name: 'Ember Aura', desc: 'Sparks circle your feet.', glyph: '✺', color: '#ff9a4d', equip: { slot: 'aura', value: 'ember' } },
+  'aura-frost': { id: 'aura-frost', name: 'Frost Aura', desc: 'Snowflakes of light from the Aether Isles.', glyph: '❄', color: '#9fe8ff', equip: { slot: 'aura', value: 'frost' } },
+  'aura-glitch': { id: 'aura-glitch', name: 'Glitch Aura', desc: 'Corrupted pixels that never quite settle. Patch’s thanks.', glyph: '▚', color: '#3dff8b', equip: { slot: 'aura', value: 'glitch' } },
+  'paint-gold': { id: 'paint-gold', name: 'Gold Leaf Paint', desc: 'Repaints your race car in gold.', glyph: '◈', color: '#ffd23f', category: 'vehicle', equip: { slot: 'paint', value: '#ffd23f' } },
+  'paint-void': { id: 'paint-void', name: 'Void Paint', desc: 'A deep violet that drinks the light.', glyph: '◈', color: '#7a2bff', category: 'vehicle', equip: { slot: 'paint', value: '#5a1fd6' } },
+  'paint-chrome': { id: 'paint-chrome', name: 'Chrome Paint', desc: 'Captain Vex’s signature finish, for beating her time trial.', glyph: '◈', color: '#e8eef8', category: 'vehicle', equip: { slot: 'paint', value: '#dfe8f5' } },
+  'snow-globe': { id: 'snow-globe', name: 'OASIS Snow Globe', desc: 'A tiny OASIS Prime under glass. It sits on your profile shelf.', glyph: '◍', color: '#9fe8ff', category: 'collectible' },
+  'pixel-pet': { id: 'pixel-pet', name: 'Pixel Pet', desc: 'A loyal 8-bit companion for your profile shelf.', glyph: '☗', color: '#3dff8b', category: 'collectible' },
+  'sealed-package': { id: 'sealed-package', name: 'Sealed Package', desc: 'Dash asked you to deliver this to Dame Ysolde in the Aether Isles.', glyph: '✉', color: '#ffe14d', category: 'special' },
+  'ysolde-token': { id: 'ysolde-token', name: 'Knight’s Token', desc: 'Dame Ysolde’s receipt for the package. Bring it back to Dash.', glyph: '⚜', color: '#9fe8ff', category: 'special' },
+  'aether-crystal': { id: 'aether-crystal', name: 'Aether Crystal', desc: 'A digital artefact from the hidden garden of the Aether Isles.', glyph: '◇', color: '#9fe8ff', category: 'special' },
+  'ghost-byte': { id: 'ghost-byte', name: 'Ghost Byte', desc: 'The last saved state of a player who logged off for good.', glyph: '◌', color: '#c8c8ff', category: 'special' },
+}
+
+/** Inventory tab for an item. */
+export function itemCategory(def: ItemDef): ItemCategory {
+  if (def.category) return def.category
+  if (def.equip?.slot === 'outfit' || def.equip?.slot === 'armour') return 'outfit'
+  if (def.equip) return 'accessory'
+  if (['champion-ticket', 'race-badge', 'founder-egg', 'cobalt-key', 'prism-key', 'copper-key'].includes(def.id)) return 'reward'
+  return 'special'
+}
+
+export interface MarketEntry {
+  item: string
+  price: number
+}
+/** The OASIS Exchange catalogue (earned coins only — there are no real-money purchases). */
+export const MARKET: MarketEntry[] = [
+  { item: 'neon-kimono', price: 30 },
+  { item: 'cyber-horns', price: 18 },
+  { item: 'aura-ember', price: 25 },
+  { item: 'neon-visor', price: 8 },
+  { item: 'pixel-cape', price: 14 },
+  { item: 'paint-gold', price: 15 },
+  { item: 'paint-void', price: 15 },
+  { item: 'snow-globe', price: 10 },
+  { item: 'pixel-pet', price: 12 },
+]
+
+/** Abilities earned in earlier challenges, used by the on-foot controller. */
+export interface Abilities {
+  doubleJump: boolean
+  phaseDash: boolean
+  overdrive: boolean
 }
 
 export interface VehicleDef {
@@ -180,6 +251,8 @@ export const JOURNAL: Record<string, JournalEntry> = {
   'mem-letter': { id: 'mem-letter', title: 'Memory: the unanswered letter (autumn 1989)', category: 'memory', text: '“Rook moved away and wrote to me. I sold our game under my name alone and never wrote back. I kept Rook’s controller under my bed, in case they came back for a rematch. Their chair has been empty ever since.”' },
   'mem-controller': { id: 'mem-controller', title: 'Memory: the second controller', category: 'memory', text: '“Everything I built after that was a way of saying sorry. The OASIS is free to enter because Rook was right.”' },
   consortium: { id: 'consortium', title: 'The Consortium', category: 'clue', text: 'A corporation wants to own the OASIS and charge for every door. Their tower holds the Prism Key — and an offer they expect players to accept.' },
+  'null-protocol': { id: 'null-protocol', title: 'The Null Protocol', category: 'clue', text: 'Glimmer: the Founder’s last door will ask what the trials taught — the six marks in their numbered order, the order the lights remember (sun, sky, bloom), and the memories in the order they were lived.' },
+  'last-door': { id: 'last-door', title: 'Echo’s warning', category: 'clue', text: 'Echo: “The last door has three locks. The marks, the lights, the memories. Pull the lever only when you are sure — the door bites back.”' },
   blueprint: { id: 'blueprint', title: 'The Blueprint', category: 'clue', text: 'The Future is a construction space. Route the emitter’s light into all three receivers with the pieces you are given. Keep the light away from corruption.' },
 }
 

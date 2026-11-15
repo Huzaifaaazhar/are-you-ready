@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { ACHIEVEMENTS, CABINETS, FOUNDER_RIDDLE, GLYPHS, ITEMS, LEVEL_XP, LOCK_KEYS, PRIZES, RACE_FAST_TIME, SECRETS, TRIALS, VEHICLES, levelFor, type MapShape } from '../../data/content'
-import { useGame, type Overlay } from '../../store/useGame'
+import { ACHIEVEMENTS, CABINETS, FOUNDER_RIDDLE, GLYPHS, ITEMS, LEVEL_XP, itemCategory, type ItemCategory, LOCK_KEYS, PRIZES, RACE_FAST_TIME, SECRETS, TRIALS, VEHICLES, levelFor, type MapShape } from '../../data/content'
+import { RELIC_SETS, useGame, type Overlay } from '../../store/useGame'
 import { TOTAL_COINS, WORLD_ORDER, WORLDS } from '../../game/world/registry'
 import { BACKROOM } from '../../game/world/arcade/layout'
 import { playerState } from '../../game/systems/playerState'
@@ -122,9 +122,14 @@ export function SettingsPanel() {
           <Opt v="on" cur={s.touch} set={(v) => update({ touch: v })} label="On" />
           <Opt v="off" cur={s.touch} set={(v) => update({ touch: v })} label="Off" />
         </Row>
-        <Row label="Graphics quality" hint="Low disables bloom, rain and reduces city density.">
+        <Row label="Graphics quality" hint="High: bloom + full density. Medium: bloom, lighter cities. Low: no post-processing, fewer particles (default on phones).">
           <Opt v="high" cur={s.quality} set={(v) => update({ quality: v })} label="High" />
+          <Opt v="medium" cur={s.quality} set={(v) => update({ quality: v })} label="Medium" />
           <Opt v="low" cur={s.quality} set={(v) => update({ quality: v })} label="Low" />
+        </Row>
+        <Row label="Automatic quality" hint="Steps quality down if the frame rate stays low.">
+          <Opt v={true} cur={s.autoQuality} set={(v) => update({ autoQuality: v })} label="On" />
+          <Opt v={false} cur={s.autoQuality} set={(v) => update({ autoQuality: v })} label="Off" />
         </Row>
         <Row label="Reduced motion" hint="Shortens cinematic transitions.">
           <Opt v={false} cur={s.reducedMotion} set={(v) => update({ reducedMotion: v })} label="Off" />
@@ -135,74 +140,114 @@ export function SettingsPanel() {
           <Opt v={false} cur={s.muted} set={(v) => update({ muted: v })} label="Sound on" />
           <Opt v={true} cur={s.muted} set={(v) => update({ muted: v })} label="Muted" />
         </Row>
+        <Row label={`Music · ${Math.round(s.musicVolume * 100)}%`}>
+          <input type="range" min={0} max={1} step={0.05} value={s.musicVolume} onChange={(e) => update({ musicVolume: Number(e.target.value) })} aria-label="Music volume" />
+        </Row>
+        <Row label={`Effects · ${Math.round(s.sfxVolume * 100)}%`}>
+          <input type="range" min={0} max={1} step={0.05} value={s.sfxVolume} onChange={(e) => update({ sfxVolume: Number(e.target.value) })} aria-label="Effects volume" />
+        </Row>
+        <Row label={`Environmental audio · ${Math.round(s.ambienceVolume * 100)}%`} hint="City hum, arcade bleeps, wind, static — all synthesised live.">
+          <input type="range" min={0} max={1} step={0.05} value={s.ambienceVolume} onChange={(e) => update({ ambienceVolume: Number(e.target.value) })} aria-label="Ambience volume" />
+          <Opt v={true} cur={s.ambience} set={(v) => update({ ambience: v })} label="On" />
+          <Opt v={false} cur={s.ambience} set={(v) => update({ ambience: v })} label="Off" />
+        </Row>
+        <Row label="Connection" hint="This build is single-player. Residents are NPCs simulated on this device; the presence layer is ready for a future network provider.">
+          <span className="font-mono text-[0.75rem] text-white/60">Offline · NPCs only</span>
+        </Row>
       </div>
     </Panel>
   )
 }
 
+const INV_TABS: { id: ItemCategory; label: string }[] = [
+  { id: 'outfit', label: 'Outfits' },
+  { id: 'accessory', label: 'Accessories' },
+  { id: 'vehicle', label: 'Vehicles' },
+  { id: 'collectible', label: 'Collectibles' },
+  { id: 'reward', label: 'Rewards' },
+  { id: 'special', label: 'Special' },
+]
+
 export function InventoryPanel({ close }: { close: () => void }) {
-  const items = useGame((s) => s.progress.items)
+  const p = useGame((s) => s.progress)
   const avatar = useGame((s) => s.avatar)
   const equip = useGame((s) => s.equipItem)
-  const wallet = useGame((s) => s.progress.wallet)
-  const [sel, setSel] = useState<string | null>(items[0] ?? null)
-  const vehicles = useGame((s) => s.progress.vehicles)
-  const current = useGame((s) => s.progress.vehicle)
-  const def = sel ? ITEMS[sel] : null
-  const equipped = def?.equip && avatar ? avatar[def.equip.slot] === def.equip.value : false
+  const selectVehicle = useGame((s) => s.selectVehicle)
+  const [tab, setTab] = useState<ItemCategory>('outfit')
+  const list = Object.values(ITEMS).filter((it) => itemCategory(it) === tab)
+  const firstOwned = list.find((it) => p.items.includes(it.id))
+  const [sel, setSel] = useState<string | null>(firstOwned?.id ?? null)
+  const def = sel && ITEMS[sel] && itemCategory(ITEMS[sel]) === tab ? ITEMS[sel] : null
+  const isEquipped = (id: string) => {
+    const e = ITEMS[id]?.equip
+    if (!e || !avatar) return false
+    if (e.slot === 'paint') return p.paint === e.value
+    return (avatar as unknown as Record<string, string>)[e.slot] === e.value
+  }
   return (
-    <Panel title="INVENTORY" kicker={`${items.length} items · ${wallet} coins`} accent="#9d4dff" onClose={close} wide>
-      <div className="grid gap-4 md:grid-cols-[1fr_260px]" data-testid="inventory">
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {Object.values(ITEMS).map((it) => {
-            const has = items.includes(it.id)
-            return (
-              <button
-                key={it.id}
-                disabled={!has}
-                aria-pressed={sel === it.id}
-                onClick={() => { sfx('blip'); setSel(it.id) }}
-                className="chip flex aspect-square flex-col items-center justify-center gap-1 !p-2"
-                style={css(it.color)}
-              >
-                <span className="text-2xl" style={{ color: has ? it.color : '#444', textShadow: has ? `0 0 12px ${it.color}` : undefined }}>
-                  {has ? it.glyph : '?'}
-                </span>
-                <span className="text-center text-[0.6rem] leading-tight">{has ? it.name : 'Undiscovered'}</span>
-              </button>
-            )
-          })}
+    <Panel title="INVENTORY" kicker={`${p.items.length} items · ${p.wallet} coins`} accent="#9d4dff" onClose={close} wide>
+      <div data-testid="inventory">
+        <div className="mb-3 flex flex-wrap gap-1" role="tablist">
+          {INV_TABS.map((t) => (
+            <button key={t.id} role="tab" aria-selected={tab === t.id} aria-pressed={tab === t.id} className="chip" style={css('#9d4dff')} onClick={() => { sfx('blip'); setTab(t.id); setSel(null) }} data-testid={`inv-tab-${t.id}`}>
+              {t.label}
+            </button>
+          ))}
         </div>
-        <div className="border border-white/10 bg-black/30 p-4">
-          {def ? (
-            <>
-              <div className="text-4xl" style={{ color: def.color, textShadow: `0 0 16px ${def.color}` }}>{def.glyph}</div>
-              <div className="mt-2 font-display text-sm font-bold tracking-wider text-white">{def.name}</div>
-              <p className="mt-2 text-[0.8rem] text-white/70">{def.desc}</p>
-              {def.equip && (
-                <button className="holo-btn primary mt-4 w-full" style={css(def.color)} onClick={() => equip(def.id)}>
-                  {equipped ? 'Unequip' : 'Equip on avatar'}
+        {tab === 'vehicle' && (
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            {VEHICLES.map((v) => {
+              const own = p.vehicles.includes(v.id)
+              return (
+                <button key={v.id} disabled={!own} className={`chip !p-2 text-center ${p.vehicle === v.id ? '' : ''}`} aria-pressed={p.vehicle === v.id} style={css(v.color)} onClick={() => selectVehicle(v.id)}>
+                  <div className="font-display text-[0.75rem]" style={{ color: own ? v.color : '#666' }}>{v.name}</div>
+                  <div className="text-[0.62rem] text-white/50">{own ? (p.vehicle === v.id ? 'selected for races' : 'tap to select') : v.unlock}</div>
                 </button>
-              )}
-              {def.id === 'copper-key' && <p className="mt-3 text-[0.72rem] text-ember">Use it at the Founder’s Gate in OASIS Prime.</p>}
-            </>
-          ) : (
-            <p className="text-[0.8rem] text-white/50">Your locker is empty. Explore the worlds to find items.</p>
-          )}
-        </div>
-      </div>
-      <div className="mt-4">
-        <div className="mb-2 font-display text-[0.65rem] uppercase tracking-[0.25em] text-violet">Garage</div>
-        <div className="grid grid-cols-3 gap-2">
-          {VEHICLES.map((v) => {
-            const own = vehicles.includes(v.id)
-            return (
-              <div key={v.id} className={`border p-2 text-center text-[0.7rem] ${own ? 'border-white/20 bg-white/5' : 'border-white/10 bg-black/30 opacity-50'}`}>
-                <div className="font-display text-[0.75rem]" style={{ color: own ? v.color : '#666' }}>{v.name}</div>
-                <div className="text-white/50">{own ? (current === v.id ? 'selected' : 'owned') : v.unlock}</div>
+              )
+            })}
+          </div>
+        )}
+        {tab === 'collectible' && (
+          <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+            {Object.entries(RELIC_SETS).map(([k, r]) => (
+              <div key={k} className="border border-white/10 bg-black/30 p-2">
+                <div className="font-display text-lg text-white">{p.relics.filter((x) => x.startsWith(k + '-')).length}/{r.total}</div>
+                <div className="text-[0.65rem] text-white/60">{r.name}s</div>
               </div>
-            )
-          })}
+            ))}
+          </div>
+        )}
+        <div className="grid gap-4 md:grid-cols-[1fr_260px]">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {list.length === 0 && <p className="col-span-4 text-[0.8rem] text-white/50">Nothing in this category yet.</p>}
+            {list.map((it) => {
+              const has = p.items.includes(it.id)
+              return (
+                <button key={it.id} disabled={!has} aria-pressed={sel === it.id} onClick={() => { sfx('blip'); setSel(it.id) }} className="chip relative flex aspect-square flex-col items-center justify-center gap-1 !p-2" style={css(it.color)} data-testid={`inv-${it.id}`}>
+                  <span className="text-2xl" style={{ color: has ? it.color : '#444', textShadow: has ? `0 0 12px ${it.color}` : undefined }}>{has ? it.glyph : '?'}</span>
+                  <span className="text-center text-[0.6rem] leading-tight">{has ? it.name : 'Undiscovered'}</span>
+                  {has && isEquipped(it.id) && <span className="absolute right-1 top-1 text-[0.55rem] text-lime">ON</span>}
+                </button>
+              )
+            })}
+          </div>
+          <div className="border border-white/10 bg-black/30 p-4">
+            {def ? (
+              <>
+                <div className="text-4xl" style={{ color: def.color, textShadow: `0 0 16px ${def.color}` }}>{def.glyph}</div>
+                <div className="mt-2 font-display text-sm font-bold tracking-wider text-white">{def.name}</div>
+                <p className="mt-2 text-[0.8rem] text-white/70">{def.desc}</p>
+                {def.equip && (
+                  <button className="holo-btn primary mt-4 w-full" style={css(def.color)} onClick={() => equip(def.id)} data-testid="inv-equip">
+                    {isEquipped(def.id) ? 'Unequip' : def.equip.slot === 'paint' ? 'Apply to race car' : 'Equip on avatar'}
+                  </button>
+                )}
+                {def.id === 'copper-key' && <p className="mt-3 text-[0.72rem] text-ember">Use it at the Founder’s Gate in OASIS Prime.</p>}
+              </>
+            ) : (
+              <p className="text-[0.8rem] text-white/50">Select an item. Earn more from quests, challenges and the OASIS Exchange.</p>
+            )}
+          </div>
         </div>
       </div>
     </Panel>

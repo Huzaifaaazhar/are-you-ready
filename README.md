@@ -60,6 +60,31 @@ A playable 3D browser game inspired by the 2018 film *Ready Player One*: boot in
   - **What's tracked:** XP and levels (each level-up pays coins), coins, items, achievements (25 in total), race results, arcade high scores, marks, trials, vehicles and your monument.
   - **Rewards that change the game:** new outfits (Archivist Coat, Pixel Suit), armour (Gladiator Rig, Vanguard), head gear (Racer Helmet, Architect's Crown), back gear (Orbital Drones), vehicles, trial portals, the vault area and the monument.
 
+## Part 3 — the final quest
+
+- **Three new worlds**, each behind a portal in OASIS Prime and each lazy-loaded as its own chunk:
+  - **Neon Heights (futuristic city):** five towers stacked vertically. Ride lifts, launch from jump pads between rooftops, cross skybridges and elevated roads, and switch on a broadcast tower. A switch on the Vanta billboard opens a hidden pad up to the Skyline Garden. Collect six Neon Sigils.
+  - **Aether Isles (fantasy realm):** floating islands over a cloud sea, with ruins, a castle and a spire. Turn three statues to the right faces to raise an aether bridge to the castle. Step on four rune tiles to open a secret warp ring to a hidden sky garden. Collect five rune stones and the Aether Crystal.
+  - **Null Sector (digital wasteland):** abandoned structures with corruption pools, a collapsing bridge and a lightning storm. A glitched wall in the data center is really a hidden passage. Collect five data shards and the Ghost Byte.
+- **Residents (NPCs):** eight non-player characters with their own personalities and dialogue, spread across the hub and the new worlds: Glimmer, Mercer, Patch, Old Byte, Vex, Dash, Ysolde and Echo. They give clues and quests, trade items (Dash's package goes to Ysolde in exchange for her token) and run the OASIS Exchange. They are labelled "NPC" in the world, and the dialogue footer says the game is offline and single-player.
+- **Multiplayer: not implemented.** There is no networking. Residents come from a `PresenceProvider` interface (`src/game/social/presence.ts`), and the only provider is the local NPC one. A future network provider could add remote players through that same interface without changing the world code.
+- **Quests:** a main quest (*The Null Protocol*) and eight optional side quests. Each has objectives with live progress, turn-ins and rewards. The quest log opens with L.
+- **World event:** a Coin Rain periodically drops coin orbs over the hub. A red Incursion sky hangs over the hub until you finish the final quest.
+- **Inventory and the OASIS Exchange:** the inventory is split into tabs for outfits, accessories, vehicles, collectibles, challenge rewards and special items. Outfits and accessories show on your avatar everywhere, including auras that orbit you. Car paints change your racing car. The Exchange sells items for in-game coins only; there are no real-money purchases.
+- **New abilities from earlier rewards:** a double jump (from Glitch Hop), a phase dash (F or the DASH button, from Grid Gladiator) and an overdrive sprint (from the Grand Prix).
+- **The final showdown at the Null Citadel**, which opens once you hold the Founder's Egg:
+  1. **Preparation:** review the clues you have gathered and pick one gift. Aegis gives more integrity, Chronos slows the hazards and Beacon adds more checkpoints.
+  2. **Infiltration:** get past laser bars you jump over, moving platforms and firewalls you can phase-dash through.
+  3. **Puzzle:** use clues from Parts 1–3 to set six mark sockets, four memory plinths and a light sequence, then pull the lever. A wrong pull costs integrity.
+  4. **The Null Titan:** dodge shockwaves (jump), targeted strikes and a sweep beam while you charge three pylons. Losing all integrity restarts the stage.
+  5. **The choice:** decide what the OASIS should become. Open Door (community), Caretaker (stewardship) or Rest (balance) are three different values, not good and bad options. The ending text changes with your trials, monument, gift and the side quests you finished, and you get a rank. You can come back to make the other choices; seeing all three earns an achievement.
+- **Player profile:** a 3D room with holographic cards around your avatar. It shows your achievements, the worlds you have visited, race records, arcade scores, the hunt, challenges, inventory trinkets and your final outcome.
+- **Audio:** original procedural music for each world, plus separate ambience beds and sound effects. Music, effects and ambience have their own volume sliders. Audio starts only after you interact with the page, as browsers require.
+- **Performance:**
+  - Graphics quality has three presets, plus an automatic step-down when the frame rate drops. Touch devices default to Low.
+  - Worlds are lazy-loaded behind a loading screen.
+  - An error boundary catches a world that fails to load and offers retry or return. A lost WebGL context is handled too.
+
 ## Controls
 
 | Action | Keyboard / mouse | Touch |
@@ -70,7 +95,10 @@ A playable 3D browser game inspired by the 2018 film *Ready Player One*: boot in
 | Jump | Space | JUMP |
 | Sprint | Shift (uses energy) | » toggle |
 | Interact | E (or Enter) | E button or tap the prompt |
-| Inventory / map / journal | I / M / J | HUD buttons |
+| Inventory / map / journal / quests | I / M / J / L | HUD buttons |
+| Phase dash (once unlocked) | F | DASH |
+| Double jump (once unlocked) | Space in mid-air | JUMP in mid-air |
+| Dialogue options | 1–9 or click | Tap |
 | Pause | Esc (or P) | ❚❚ |
 
 **Driving (Velocity City):**
@@ -115,7 +143,12 @@ src/
       arcade/      Arcade District: layout data + world + props (cabinets, rain, signs)
       race/        Velocity City: track builder, Rapier vehicle, hazards, autopilot (tests)
       trials/      past/ present/ future/ — the three Founder's trials + shared intro/result/HUD
-  ui/              DOM layer: Boot, Title, Creator, HUD, TouchControls, overlay Panels, mini-games
+      city/ fantasy/ wasteland/  the Part 3 expansion worlds
+      showdown/    the Null Citadel: stage state (state.ts, kept out of the lazy chunk) + world
+    social/        presence abstraction (NPC provider today, network-ready interface) + PresenceLayer
+  data/quests.ts, npcs.ts, endings.ts   data-driven quests, NPC dialogue trees, ending composition
+  ui/              DOM layer: Boot, Title, Creator, HUD, TouchControls, overlay Panels, mini-games,
+                   SocialPanels (dialogue, market, quest log), FinalePanels (prep, fail, ending), Profile
 ```
 
 **Adding a world:** create `world/<name>/layout.ts` (spawns, points of interest, coins, map shapes) and a default-exported world component. Register both in `world/registry.ts`, then place a `<Portal target="<name>" />` somewhere. Interactions (`useInteractable` or `<Kiosk>`), collectibles (`<Coins>`, `<ItemPickup>`), the map, fast travel and save data all work automatically.
@@ -151,9 +184,20 @@ It saves screenshots to `screenshots/`.
 - **The trials:** it completes all three, including their failure branches (a wrong memory order, being spotted, signing the contract, a corruption overload) and a different Blueprint solution from the one mentioned in this README.
 - **The ending:** it solves the cipher, claims the Egg, equips the rewards, checks persistence after a reload, and drives on touch on a phone.
 
+`scripts/e2e-part3.mjs` starts a brand-new game and plays Part 3:
+- **Residents and the Exchange:** it talks to the NPCs, accepts quests, buys items at the Exchange and equips them.
+- **Neon Heights:** it walks through the portal, rides a lift, launches from a jump pad, switches on the broadcast tower, uses the billboard switch and the hidden pad, and collects the sigils.
+- **Aether Isles:** it delivers the package, solves the statues, walks the aether bridge, steps the rune tiles, takes the warp ring and finds the crystal.
+- **Null Sector:** it tests a corruption pool, the collapsing bridge, the hidden passage and the shards.
+- **Quests and inventory:** it turns in all side quests and equips items from the inventory.
+- **The showdown:** it plays every stage, including a firewall hit, a phase dash, a wrong lever pull and the full puzzle. It fights the Titan and makes all three endings.
+- **The rest:** it checks the profile, settings, persistence after a reload, and phone touch input (DASH, talking to an NPC, the profile).
+
+The Part 3 run grants the Part 1/2 end state (Egg, trials, cabinets) before the showdown instead of replaying it; the earlier suites cover that.
+
 ```bash
 npm run dev &
-npm run test:e2e        # both suites; or test:e2e:part1 / test:e2e:part2
+npm run test:e2e        # all three suites; or test:e2e:part1 / part2 / part3
 ```
 
 Debug handles for the console:
@@ -161,3 +205,4 @@ Debug handles for the console:
 - `window.__player`: live player state, plus `teleport([x, y, z], yaw)`.
 - `window.__race` and `window.__car`: race state and car telemetry; `__race.setState({ autopilot: true })` drives the car.
 - `window.__past`, `__present` and `__future`: the trial states.
+- `window.__showdown`, `__fantasy`, `__presence` and `__events`: the showdown state, the statue puzzle, the residents and the hub world events (`__events.trigger()` starts a Coin Rain).

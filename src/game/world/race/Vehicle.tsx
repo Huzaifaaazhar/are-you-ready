@@ -62,8 +62,9 @@ function readControls(): ControlInput {
 /** Procedural car body for each vehicle (original designs). */
 function CarBody({ def, wheels, boostFlame }: { def: VehicleDef; wheels: React.MutableRefObject<(Group | null)[]>; boostFlame: React.MutableRefObject<Group | null> }) {
   const avatar = useGame((s) => s.avatar)
+  const paintHex = useGame((s) => s.progress.paint)
   const shape = SHAPES[def.id]
-  const paint = useMemo(() => surfaceMaterial(def.color, 0.25, 0.75), [def.color])
+  const paint = useMemo(() => surfaceMaterial(paintHex ?? def.color, 0.25, 0.75), [def.color, paintHex])
   const dark = surfaceMaterial('#0d0b18', 0.4, 0.6)
   const glass = useMemo(() => new MeshBasicMaterial({ color: new Color(def.color).multiplyScalar(0.8), transparent: true, opacity: 0.28, depthWrite: false }), [def.color])
   const glowC = neonMaterial(def.color, 2.6)

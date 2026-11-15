@@ -4,10 +4,11 @@ export type BodyType = 'slim' | 'standard' | 'bulky'
 export type HeadShape = 'round' | 'angular' | 'oval' | 'bot'
 export type FaceStyle = 'bright' | 'visor' | 'narrow' | 'pixel'
 export type HairStyle = 'none' | 'crop' | 'spikes' | 'mohawk' | 'long' | 'bun' | 'swoop'
-export type Outfit = 'jumpsuit' | 'jacket' | 'hoodie' | 'racer' | 'archivist' | 'pixel-suit'
+export type Outfit = 'jumpsuit' | 'jacket' | 'hoodie' | 'racer' | 'archivist' | 'pixel-suit' | 'kimono' | 'legend'
 export type Armour = 'none' | 'pauldrons' | 'chestplate' | 'full' | 'gladiator' | 'vanguard'
-export type HeadGear = 'none' | 'headphones' | 'goggles' | 'antenna' | 'halo' | 'neon-visor' | 'racer-helmet' | 'crown'
-export type BackGear = 'none' | 'jetpack' | 'blade' | 'wings' | 'pixel-cape' | 'drones'
+export type HeadGear = 'none' | 'headphones' | 'goggles' | 'antenna' | 'halo' | 'neon-visor' | 'racer-helmet' | 'crown' | 'horns'
+export type BackGear = 'none' | 'jetpack' | 'blade' | 'wings' | 'pixel-cape' | 'drones' | 'hoverboard'
+export type Aura = 'none' | 'ember' | 'frost' | 'glitch'
 
 export interface AvatarConfig {
   name: string
@@ -26,6 +27,7 @@ export interface AvatarConfig {
   armour: Armour
   headGear: HeadGear
   backGear: BackGear
+  aura: Aura
 }
 
 export interface Option<T extends string> {
@@ -68,6 +70,8 @@ export const OUTFIT_OPTIONS: Option<Outfit>[] = [
   { id: 'racer', label: 'Racer Leathers' },
   { id: 'pixel-suit', label: 'Pixel Suit', requires: 'pixel-suit' },
   { id: 'archivist', label: 'Archivist Coat', requires: 'archivist-coat' },
+  { id: 'kimono', label: 'Neon Kimono', requires: 'neon-kimono' },
+  { id: 'legend', label: 'Legend Jacket', requires: 'legend-jacket' },
 ]
 export const ARMOUR_OPTIONS: Option<Armour>[] = [
   { id: 'none', label: 'None' },
@@ -86,6 +90,7 @@ export const HEADGEAR_OPTIONS: Option<HeadGear>[] = [
   { id: 'neon-visor', label: 'Neon Visor', requires: 'neon-visor' },
   { id: 'racer-helmet', label: 'Racer Helmet', requires: 'racer-helmet' },
   { id: 'crown', label: 'Architect’s Crown', requires: 'founder-crown' },
+  { id: 'horns', label: 'Cyber Horns', requires: 'cyber-horns' },
 ]
 export const BACKGEAR_OPTIONS: Option<BackGear>[] = [
   { id: 'none', label: 'None' },
@@ -94,6 +99,13 @@ export const BACKGEAR_OPTIONS: Option<BackGear>[] = [
   { id: 'wings', label: 'Holo Wings' },
   { id: 'pixel-cape', label: 'Pixel Cape', requires: 'pixel-cape' },
   { id: 'drones', label: 'Orbital Drones', requires: 'orbital-drones' },
+  { id: 'hoverboard', label: 'Hoverboard', requires: 'hoverboard' },
+]
+export const AURA_OPTIONS: Option<Aura>[] = [
+  { id: 'none', label: 'None' },
+  { id: 'ember', label: 'Ember', requires: 'aura-ember' },
+  { id: 'frost', label: 'Frost', requires: 'aura-frost' },
+  { id: 'glitch', label: 'Glitch', requires: 'aura-glitch' },
 ]
 
 export const SKIN_TONES = ['#f6d7c3', '#e8b896', '#c98e68', '#a0673f', '#6e4428', '#3f2717', '#9fd7ff', '#c7a6ff']
@@ -106,27 +118,27 @@ export const PRESETS: AvatarConfig[] = [
   {
     name: 'Voltline', body: 'standard', height: 1, skin: '#e8b896', head: 'round', face: 'bright', eyes: '#00f0ff',
     hair: 'spikes', hairColor: '#101018', outfit: 'jacket', primary: '#141428', secondary: '#0b2a4a', accent: '#00f0ff',
-    armour: 'none', headGear: 'goggles', backGear: 'none',
+    armour: 'none', headGear: 'goggles', backGear: 'none', aura: 'none',
   },
   {
     name: 'Nyx Rune', body: 'slim', height: 0.97, skin: '#f6d7c3', head: 'oval', face: 'narrow', eyes: '#ff2bd6',
     hair: 'long', hairColor: '#ff2bd6', outfit: 'racer', primary: '#1a1a1a', secondary: '#3a0d3f', accent: '#ff2bd6',
-    armour: 'pauldrons', headGear: 'none', backGear: 'blade',
+    armour: 'pauldrons', headGear: 'none', backGear: 'blade', aura: 'none',
   },
   {
     name: 'Kilobyte', body: 'bulky', height: 1.06, skin: '#6e4428', head: 'angular', face: 'visor', eyes: '#ffe14d',
     hair: 'mohawk', hairColor: '#ffe14d', outfit: 'jumpsuit', primary: '#4a3a10', secondary: '#141428', accent: '#ffe14d',
-    armour: 'full', headGear: 'headphones', backGear: 'jetpack',
+    armour: 'full', headGear: 'headphones', backGear: 'jetpack', aura: 'none',
   },
   {
     name: 'Solar Drift', body: 'standard', height: 1.02, skin: '#a0673f', head: 'round', face: 'bright', eyes: '#3dff8b',
     hair: 'bun', hairColor: '#f4f4f4', outfit: 'hoodie', primary: '#0f4038', secondary: '#e8e8f0', accent: '#3dff8b',
-    armour: 'chestplate', headGear: 'halo', backGear: 'wings',
+    armour: 'chestplate', headGear: 'halo', backGear: 'wings', aura: 'none',
   },
   {
     name: 'Unit 0xC0DE', body: 'slim', height: 1.04, skin: '#9fd7ff', head: 'bot', face: 'pixel', eyes: '#ff4d4d',
     hair: 'none', hairColor: '#101018', outfit: 'jumpsuit', primary: '#e8e8f0', secondary: '#24124a', accent: '#9d4dff',
-    armour: 'pauldrons', headGear: 'antenna', backGear: 'none',
+    armour: 'pauldrons', headGear: 'antenna', backGear: 'none', aura: 'none',
   },
 ]
 
@@ -160,6 +172,7 @@ export function randomAvatar(owned: string[] = []): AvatarConfig {
     armour: pick(ARMOUR_OPTIONS).id,
     headGear: pick(allowed(HEADGEAR_OPTIONS)).id,
     backGear: pick(allowed(BACKGEAR_OPTIONS)).id,
+    aura: pick(allowed(AURA_OPTIONS)).id,
   }
 }
 
@@ -180,6 +193,7 @@ export function sanitizeAvatar(a: Partial<AvatarConfig> | null | undefined, owne
   merged.armour = ok(ARMOUR_OPTIONS, merged.armour, 'none')
   merged.headGear = ok(HEADGEAR_OPTIONS, merged.headGear, 'none')
   merged.backGear = ok(BACKGEAR_OPTIONS, merged.backGear, 'none')
+  merged.aura = ok(AURA_OPTIONS, merged.aura ?? 'none', 'none')
   merged.height = Math.min(1.1, Math.max(0.9, Number(merged.height) || 1))
   merged.name = (merged.name || 'Player One').slice(0, 18)
   return merged

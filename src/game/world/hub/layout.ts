@@ -42,6 +42,11 @@ export const HUB_POS = {
   vault: [-44, 40, -11] as Vec3,
   monument: [-12, 0, -14] as Vec3,
   glyph2: [0, 0.42, -7.56] as Vec3,
+  cityPortal: [33, 0, -20] as Vec3,
+  fantasyPortal: [-16, 0, -41] as Vec3,
+  wastelandPortal: [16, 0, -41] as Vec3,
+  showdownPortal: [-14, 0, 40] as Vec3,
+  exchange: [15, 0, 12] as Vec3,
 }
 export const TRIAL_PORTALS = [
   { trial: 'past', pos: [-52, 0, -9] as Vec3 },
@@ -59,6 +64,10 @@ export const HUB_LAYOUT: WorldLayout = {
     fromArcade: { pos: [0, 1.2, -29], yaw: Math.PI },
     fromRace: { pos: [0, 1.2, 33], yaw: 0 },
     fromTrials: { pos: [-45, 1.2, 0], yaw: -Math.PI / 2 },
+    fromCity: { pos: [26.5, 1.2, -16.1], yaw: Math.atan2(26.5, -16.1) },
+    fromFantasy: { pos: [-13.2, 1.2, -33.9], yaw: Math.atan2(-13.2, -33.9) },
+    fromWasteland: { pos: [13.2, 1.2, -33.9], yaw: Math.atan2(13.2, -33.9) },
+    fromShowdown: { pos: [-11.5, 1.2, 32.8], yaw: Math.atan2(-11.5, 32.8) },
   },
   pois: [
     { id: 'arcade-portal', label: 'Arcade District Portal', x: 0, z: -36, kind: 'portal' },
@@ -74,6 +83,10 @@ export const HUB_LAYOUT: WorldLayout = {
     { id: 'race-portal', label: 'Velocity City Portal', x: 0, z: 41, kind: 'portal' },
     { id: 'trials', label: 'Trial portals', x: -52, z: 0, kind: 'challenge' },
     { id: 'monument', label: 'Your Monument', x: -12, z: -14, kind: 'service' },
+    { id: 'city', label: 'Neon Heights portal', x: 33, z: -20, kind: 'portal' },
+    { id: 'fantasy', label: 'Aether Isles portal', x: -16, z: -41, kind: 'portal' },
+    { id: 'wasteland', label: 'Null Sector portal', x: 16, z: -41, kind: 'portal' },
+    { id: 'exchange', label: 'OASIS Exchange', x: 15, z: 12, kind: 'service' },
   ],
   coins: [
     { id: 'hub-c1', pos: [0, 1, 15] },

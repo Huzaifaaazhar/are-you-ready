@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { CapsuleCollider, RigidBody, useRapier, type RapierRigidBody } from '@react-three/rapier'
 import { Group, Mesh, MeshBasicMaterial, Vector3 } from 'three'
 import type { SpawnPoint } from '../../data/content'
-import { useGame } from '../../store/useGame'
+import { getAbilities, useGame } from '../../store/useGame'
 import { AvatarModel, type AvatarMotion } from '../avatar/AvatarModel'
 import { consumeLook, input, isKey } from '../systems/input'
 import { findNearest } from '../systems/interaction'
@@ -54,12 +54,14 @@ export function Player({ spawn }: Props) {
   const { world, rapier } = useRapier()
   const camera = useThree((s) => s.camera)
   const cam = useRef({ yaw: spawn.yaw, pitch: 0.32, dist: CAM_DIST })
-  const st = useRef({ coyote: 0, jumpCooldown: 0, heading: spawn.yaw + Math.PI, energy: 100, exhausted: false, lastPromptId: '', lastPromptLabel: '', airTime: 0, lastJumpSeen: 0 })
+  const st = useRef({ coyote: 0, jumpCooldown: 0, heading: spawn.yaw + Math.PI, energy: 100, exhausted: false, lastPromptId: '', lastPromptLabel: '', airTime: 0, lastJumpSeen: 0, airJumps: 0, dash: 0, lastDashSeen: 0, launched: false })
 
   useEffect(() => {
     cam.current.yaw = spawn.yaw
     playerState.cameraYaw = spawn.yaw
     playerState.position.set(spawn.pos[0], spawn.pos[1], spawn.pos[2])
+    playerState.checkpoint = null
+    playerState.launchUntil = 0
     playerState.teleport = (p, yaw) => {
       const b = body.current
       if (!b) return
@@ -117,11 +119,12 @@ export function Player({ spawn }: Props) {
     if (mag > 0.01) move.normalize().multiplyScalar(mag)
 
     // ---- Sprint / energy ----
+    const ab = getAbilities(g.progress)
     const wantsSprint = (isKey('ShiftLeft', 'ShiftRight') || input.touchSprint) && mag > 0.1
     if (s.energy <= 0) s.exhausted = true
     if (s.exhausted && s.energy > 25) s.exhausted = false
     const sprinting = wantsSprint && !s.exhausted && !frozen
-    s.energy = Math.max(0, Math.min(100, s.energy + (sprinting ? -22 : 16) * dt))
+    s.energy = Math.max(0, Math.min(100, s.energy + (sprinting ? (ab.overdrive ? -14 : -22) : 16) * dt))
     if (Math.abs(s.energy - g.energy) > 0.9 || (s.energy === 100 && g.energy !== 100)) g.setEnergy(Math.round(s.energy))
 
     // ---- Ground check ----
@@ -143,7 +146,7 @@ export function Player({ spawn }: Props) {
     s.jumpCooldown = Math.max(0, s.jumpCooldown - dt)
 
     // ---- Velocity ----
-    const speed = sprinting ? SPRINT : WALK
+    const speed = sprinting ? (ab.overdrive ? SPRINT + 1.2 : SPRINT) : WALK
     const accel = grounded ? 14 : 5
     const k = 1 - Math.exp(-accel * dt)
     const vx = lv.x + (move.x * speed - lv.x) * k
@@ -154,24 +157,56 @@ export function Player({ spawn }: Props) {
     const freshPress = input.jumpQueuedAt !== 0 && input.jumpQueuedAt !== s.lastJumpSeen
     s.lastJumpSeen = input.jumpQueuedAt
     const jumpRecent = freshPress || (input.jumpQueuedAt !== 0 && performance.now() - input.jumpQueuedAt < 250)
+    if (grounded) s.airJumps = 0
     if (!frozen && jumpRecent && s.coyote > 0 && s.jumpCooldown <= 0) {
       vy = JUMP_V
       s.coyote = 0
       s.jumpCooldown = 0.3
       input.jumpQueuedAt = 0
       sfx('jump')
+    } else if (!frozen && freshPress && ab.doubleJump && !grounded && s.coyote <= 0 && s.airJumps < 1 && s.jumpCooldown <= 0.15) {
+      // Double jump (Glitch Hop ability)
+      vy = JUMP_V * 0.92
+      s.airJumps++
+      input.jumpQueuedAt = 0
+      sfx('jump')
     }
+    // Phase dash (Grid Gladiator ability): short burst, hazards that respect phasing let you through.
+    const dashFresh = input.dashQueuedAt !== 0 && input.dashQueuedAt !== s.lastDashSeen
+    s.lastDashSeen = input.dashQueuedAt
+    if (!frozen && dashFresh && ab.phaseDash && performance.now() > playerState.dashCooldownUntil) {
+      s.dash = 0.24
+      playerState.dashCooldownUntil = performance.now() + 1300
+      sfx('shoot')
+    }
+    s.dash = Math.max(0, s.dash - dt)
+    playerState.phasing = s.dash > 0
+    const launching = performance.now() < playerState.launchUntil
+    if (launching && !s.launched) {
+      s.launched = true
+      vy = playerState.launchVel.y
+      s.jumpCooldown = 0.4
+    }
+    if (!launching) s.launched = false
     if (frozen) {
       b.setLinvel({ x: lv.x * 0.8, y: vy, z: lv.z * 0.8 }, true)
+    } else if (launching) {
+      b.setLinvel({ x: playerState.launchVel.x, y: vy, z: playerState.launchVel.z }, true)
+      if (grounded && lv.y <= 0.1 && s.jumpCooldown <= 0) playerState.launchUntil = 0
+    } else if (s.dash > 0) {
+      b.setLinvel({ x: Math.sin(s.heading) * 19, y: Math.max(vy, 0), z: Math.cos(s.heading) * 19 }, true)
     } else {
       b.setLinvel({ x: vx, y: vy, z: vz }, true)
     }
 
     // ---- Respawn if fallen out of the world ----
     if (pos.y < -25) {
-      b.setTranslation({ x: spawn.pos[0], y: spawn.pos[1] + 1, z: spawn.pos[2] }, true)
+      const cp = playerState.checkpoint
+      const rp = cp ? cp.pos : spawn.pos
+      b.setTranslation({ x: rp[0], y: rp[1] + 1, z: rp[2] }, true)
       b.setLinvel({ x: 0, y: 0, z: 0 }, true)
-      g.toast({ kind: 'info', title: 'Respawned', body: 'You fell out of the world.' })
+      playerState.launchUntil = 0
+      g.toast({ kind: 'info', title: 'Respawned', body: cp ? 'Back to the last checkpoint.' : 'You fell out of the world.' })
     }
 
     // ---- Avatar facing + animation ----

@@ -2,11 +2,13 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { type AvatarConfig, DEFAULT_AVATAR, sanitizeAvatar } from '../data/avatar'
 import { useCreator } from './useCreator'
-import { ACHIEVEMENTS, CABINETS, GLYPHS, GP_FAST_TIME, ITEMS, JOURNAL, LOCK_KEYS, PRIZES, RACE_FAST_TIME, SECRETS, TRIALS, VEHICLES, WISP_PRICE, levelFor, type CabinetId, type TrialId, type WorldId } from '../data/content'
+import { QUESTS, questComplete } from '../data/quests'
+import { NPCS } from '../data/npcs'
+import { ACHIEVEMENTS, CABINETS, GLYPHS, MARKET, type Abilities, GP_FAST_TIME, ITEMS, JOURNAL, LOCK_KEYS, PRIZES, RACE_FAST_TIME, SECRETS, TRIALS, VEHICLES, WISP_PRICE, levelFor, type CabinetId, type TrialId, type WorldId } from '../data/content'
 import { TOTAL_COINS, WORLDS } from '../game/world/registry'
 import { sfx } from '../game/systems/audio'
 
-export type Phase = 'boot' | 'title' | 'creator' | 'world'
+export type Phase = 'boot' | 'title' | 'creator' | 'world' | 'profile'
 
 export type Overlay =
   | { type: 'pause' }
@@ -23,6 +25,12 @@ export type Overlay =
   | { type: 'cipher' }
   | { type: 'garage' }
   | { type: 'race-result' }
+  | { type: 'dialogue'; npc: string; node?: string }
+  | { type: 'market' }
+  | { type: 'quests' }
+  | { type: 'prep' }
+  | { type: 'ending'; choice: EndingId }
+  | { type: 'sd-fail'; title: string; body: string[] }
   | { type: 'monument' }
   | { type: 'trial-intro'; trial: TrialId }
   | { type: 'trial-result'; trial: TrialId; success: boolean; title: string; body: string[] }
@@ -40,9 +48,15 @@ export interface Settings {
   controlMode: 'mouse' | 'assist'
   sensitivity: number
   invertY: boolean
-  quality: 'high' | 'low'
+  quality: 'high' | 'medium' | 'low'
   muted: boolean
   volume: number
+  musicVolume: number
+  sfxVolume: number
+  ambience: boolean
+  ambienceVolume: number
+  /** Let the game lower quality automatically when the frame rate drops. */
+  autoQuality: boolean
   touch: 'auto' | 'on' | 'off'
   reducedMotion: boolean
 }
@@ -72,6 +86,24 @@ export interface Progress {
   vaultOpen: boolean
   /** 5x5 monument heights (0-4) and colours, built in Trial III. */
   monument: { h: number[]; c: string[] } | null
+  flags: string[]
+  /** World collectibles: sigil-*, rune-*, shard-*. */
+  relics: string[]
+  quests: Record<string, 'active' | 'ready' | 'done'>
+  npcMet: string[]
+  /** Race car paint override (hex), null = vehicle colour. */
+  paint: string | null
+  endings: EndingId[]
+  finalOutcome: FinalOutcome | null
+}
+
+export type EndingId = 'open' | 'caretaker' | 'rest'
+export interface FinalOutcome {
+  ending: EndingId
+  gift: string
+  rank: string
+  completion: number
+  at: number
 }
 
 export interface RaceState {
@@ -105,6 +137,13 @@ const initialProgress = (): Progress => ({
   gpFinishes: 0,
   vaultOpen: false,
   monument: null,
+  flags: [],
+  relics: [],
+  quests: {},
+  npcMet: [],
+  paint: null,
+  endings: [],
+  finalOutcome: null,
 })
 
 const defaultSettings: Settings = {
@@ -114,6 +153,11 @@ const defaultSettings: Settings = {
   quality: 'high',
   muted: false,
   volume: 0.7,
+  musicVolume: 0.6,
+  sfxVolume: 0.9,
+  ambience: true,
+  ambienceVolume: 0.6,
+  autoQuality: true,
   touch: 'auto',
   reducedMotion: false,
 }
@@ -134,6 +178,8 @@ interface GameState {
   locationBanner: number
   energy: number
   pointerLocked: boolean
+  /** Set when a world fails to load (shown with retry / return options). */
+  worldError: string | null
   /** True while a world chunk / physics engine is still loading. */
   worldLoading: boolean
   race: RaceState
@@ -170,6 +216,16 @@ interface GameState {
   selectVehicle: (id: string) => void
   openVault: () => void
   saveMonument: (m: { h: number[]; c: string[] }) => void
+  setFlag: (f: string) => void
+  collectRelic: (id: string) => void
+  acceptQuest: (id: string) => void
+  turnInQuest: (id: string) => void
+  metNpc: (id: string) => void
+  trade: (t: { give?: string; giveCoins?: number; get?: string; getCoins?: number; flag?: string }) => boolean
+  buyMarket: (item: string) => boolean
+  removeItem: (id: string) => void
+  recordEnding: (ending: EndingId, gift: string) => FinalOutcome
+  openProfile: () => void
   nextOracle: () => number
   startRace: () => void
   raceCheckpoint: (index: number, total: number) => void
@@ -181,6 +237,37 @@ interface GameState {
 }
 
 let toastId = 1
+const isCoarse = () => typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+
+/** Worlds you can resume in after a reload (trial/race/showdown state is not saved mid-run). */
+const SAFE_WORLDS: WorldId[] = ['hub', 'arcade', 'city', 'fantasy', 'wasteland']
+
+export const RELIC_SETS: Record<string, { name: string; total: number; achievement: string; world: WorldId }> = {
+  sigil: { name: 'Neon Sigil', total: 6, achievement: 'city-relics', world: 'city' },
+  rune: { name: 'Rune Stone', total: 5, achievement: 'fantasy-relics', world: 'fantasy' },
+  shard: { name: 'Data Shard', total: 5, achievement: 'wasteland-relics', world: 'wasteland' },
+}
+
+/** Abilities unlocked by earlier challenges (used by the on-foot controller and the final showdown). */
+export function getAbilities(p: Progress): Abilities {
+  return { doubleJump: p.claimedCabinets.includes('glitchhop'), phaseDash: p.claimedCabinets.includes('gladiator'), overdrive: p.gpFinishes > 0 }
+}
+
+/** Rough completion score used for the final rank and the profile. */
+export function completionPercent(p: Progress) {
+  const parts = [
+    p.collected.length / Math.max(1, TOTAL_COINS),
+    p.secrets.length / SECRETS.length,
+    p.glyphs.length / GLYPHS.length,
+    p.trials.length / 3,
+    p.relics.length / 16,
+    Object.values(p.quests).filter((v) => v === 'done').length / QUESTS.length,
+    p.claimedCabinets.length / 4,
+    p.gpFinishes > 0 ? 1 : 0,
+    p.achievements.length / ACHIEVEMENTS.length,
+  ]
+  return Math.round((parts.reduce((a, b) => a + Math.min(1, b), 0) / parts.length) * 100)
+}
 
 export const useGame = create<GameState>()(
   persist(
@@ -198,6 +285,7 @@ export const useGame = create<GameState>()(
       locationBanner: 0,
       energy: 100,
       pointerLocked: false,
+      worldError: null,
       worldLoading: false,
       race: { status: 'idle', countdownEnd: 0, startedAt: 0, next: 0, lastTime: null },
       progress: initialProgress(),
@@ -337,6 +425,12 @@ export const useGame = create<GameState>()(
         const a = get().avatar
         if (!def?.equip || !a || !get().progress.items.includes(item)) return
         const { slot, value } = def.equip
+        if (slot === 'paint') {
+          const pr = get().progress
+          set({ progress: { ...pr, paint: pr.paint === value ? null : value } })
+          sfx('select')
+          return
+        }
         const off = slot === 'outfit' ? 'jumpsuit' : 'none'
         const next = { ...a, [slot]: a[slot] === value ? off : value } as AvatarConfig
         set({ avatar: next })
@@ -489,6 +583,111 @@ export const useGame = create<GameState>()(
         set({ progress: { ...p, monument: m } })
       },
 
+      setFlag: (f) => {
+        const p = get().progress
+        if (p.flags.includes(f)) return
+        set({ progress: { ...p, flags: [...p.flags, f] } })
+      },
+
+      collectRelic: (id) => {
+        const p = get().progress
+        if (p.relics.includes(id)) return
+        const relics = [...p.relics, id]
+        set({ progress: { ...p, relics } })
+        sfx('coin')
+        const prefix = id.split('-')[0]
+        const info = RELIC_SETS[prefix]
+        const n = relics.filter((r) => r.startsWith(prefix + '-')).length
+        get().toast({ kind: 'item', title: `${info?.name ?? 'Relic'} found`, body: `${n} / ${info?.total ?? '?'}` })
+        get().grantXp(20)
+        if (info && n >= info.total) get().unlock(info.achievement)
+      },
+
+      acceptQuest: (id) => {
+        const p = get().progress
+        if (p.quests[id]) return
+        const q = QUESTS.find((x) => x.id === id)
+        if (!q) return
+        set({ progress: { ...p, quests: { ...p.quests, [id]: 'active' } } })
+        sfx('select')
+        get().toast({ kind: 'info', title: q.kind === 'main' ? `Main quest: ${q.title}` : `Quest accepted: ${q.title}`, body: 'Track it in your quest log (L)' })
+        if (q.grants) get().grantItem(q.grants)
+        evaluateQuests()
+      },
+
+      turnInQuest: (id) => {
+        const p = get().progress
+        const q = QUESTS.find((x) => x.id === id)
+        if (!q || p.quests[id] !== 'ready') return
+        let items = p.items
+        if (q.consumes) items = items.filter((i) => !q.consumes!.includes(i))
+        set({ progress: { ...p, items, quests: { ...p.quests, [id]: 'done' }, wallet: p.wallet + q.reward.coins } })
+        sfx('achievement')
+        get().toast({ kind: 'coin', title: `Quest complete: ${q.title}`, body: `+${q.reward.coins} coins · +${q.reward.xp} XP` })
+        q.reward.items?.forEach((i) => get().grantItem(i))
+        if (q.reward.journal) get().addJournal(q.reward.journal)
+        get().grantXp(q.reward.xp)
+        const done = Object.entries(get().progress.quests).filter(([k, v]) => v === 'done' && QUESTS.find((x) => x.id === k)?.kind === 'side').length
+        if (done >= 5) get().unlock('quests-5')
+      },
+
+      metNpc: (id) => {
+        const p = get().progress
+        if (p.npcMet.includes(id)) return
+        const npcMet = [...p.npcMet, id]
+        set({ progress: { ...p, npcMet } })
+        if (npcMet.length >= NPCS.length) get().unlock('social')
+      },
+
+      trade: (t) => {
+        const p = get().progress
+        if (t.give && !p.items.includes(t.give)) return false
+        if (t.giveCoins && p.wallet < t.giveCoins) {
+          sfx('error')
+          return false
+        }
+        let items = t.give ? p.items.filter((i) => i !== t.give) : p.items
+        if (t.get && !items.includes(t.get)) items = [...items, t.get]
+        const flags = t.flag && !p.flags.includes(t.flag) ? [...p.flags, t.flag] : p.flags
+        set({ progress: { ...p, items, flags, wallet: p.wallet - (t.giveCoins ?? 0) + (t.getCoins ?? 0) } })
+        sfx('unlock')
+        const parts = [t.give && `gave ${ITEMS[t.give]?.name}`, t.giveCoins && `paid ${t.giveCoins} coins`, t.get && `received ${ITEMS[t.get]?.name}`, t.getCoins && `received ${t.getCoins} coins`].filter(Boolean)
+        get().toast({ kind: 'item', title: 'Trade complete', body: parts.join(' · ') })
+        return true
+      },
+
+      buyMarket: (item) => {
+        const entry = MARKET.find((m) => m.item === item)
+        const p = get().progress
+        if (!entry || p.items.includes(item) || p.wallet < entry.price) {
+          sfx('error')
+          return false
+        }
+        set({ progress: { ...p, wallet: p.wallet - entry.price } })
+        get().grantItem(item)
+        get().unlock('shopper')
+        return true
+      },
+
+      removeItem: (id) => set((s) => ({ progress: { ...s.progress, items: s.progress.items.filter((i) => i !== id) } })),
+
+      recordEnding: (ending, gift) => {
+        const p = get().progress
+        const completion = completionPercent(p)
+        const rank = completion >= 90 ? 'Legend of the OASIS' : completion >= 65 ? 'Hero of the OASIS' : 'Wanderer of the OASIS'
+        const outcome: FinalOutcome = { ending, gift, rank, completion, at: Date.now() }
+        const endings = p.endings.includes(ending) ? p.endings : [...p.endings, ending]
+        set({ progress: { ...p, endings, finalOutcome: outcome } })
+        get().unlock(`ending-${ending}`)
+        if (endings.length >= 3) get().unlock('all-endings')
+        return outcome
+      },
+
+      openProfile: () => {
+        if (document.pointerLockElement) document.exitPointerLock()
+        set({ phase: 'profile', overlay: null, prompt: null })
+      },
+
       nextOracle: () => {
         const p = get().progress
         const i = p.oracleIndex
@@ -542,7 +741,7 @@ export const useGame = create<GameState>()(
       name: 'oasis-save-v1',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ avatar: s.avatar, worldId: s.worldId === 'hub' || s.worldId === 'arcade' ? s.worldId : 'hub', progress: s.progress, settings: s.settings }),
+      partialize: (s) => ({ avatar: s.avatar, worldId: SAFE_WORLDS.includes(s.worldId) ? s.worldId : 'hub', progress: s.progress, settings: s.settings }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<GameState>
         const progress = { ...initialProgress(), ...(p.progress ?? {}) }
@@ -552,8 +751,8 @@ export const useGame = create<GameState>()(
         return {
           ...current,
           progress,
-          settings: { ...defaultSettings, ...(p.settings ?? {}) },
-          worldId: p.worldId === 'arcade' ? 'arcade' : 'hub',
+          settings: { ...defaultSettings, ...(p.settings ?? (isCoarse() ? { quality: 'low' as const } : {})) },
+          worldId: p.worldId && SAFE_WORLDS.includes(p.worldId) ? p.worldId : 'hub',
           avatar: p.avatar ? sanitizeAvatar(p.avatar, progress.items) : null,
         }
       },
@@ -561,11 +760,54 @@ export const useGame = create<GameState>()(
   ),
 )
 
+/** Promote quests whose objectives are met; auto-offer the main quest when it becomes available. */
+export function evaluateQuests() {
+  const g = useGame.getState()
+  const p = g.progress
+  let quests = p.quests
+  const notes: { q: (typeof QUESTS)[number]; ready: boolean }[] = []
+  for (const q of QUESTS) {
+    const st = quests[q.id]
+    if (!st && q.giver === null && (!q.available || q.available(p))) {
+      quests = { ...quests, [q.id]: 'active' }
+      notes.push({ q, ready: false })
+    }
+    if ((quests[q.id] === 'active') && questComplete(q, p)) {
+      quests = { ...quests, [q.id]: q.giver === null ? 'ready' : 'ready' }
+      notes.push({ q, ready: true })
+    }
+  }
+  if (quests === p.quests) return
+  useGame.setState({ progress: { ...p, quests } })
+  for (const n of notes) {
+    if (!n.ready) g.toast({ kind: 'secret', title: `New main quest: ${n.q.title}`, body: 'Open the quest log with L' })
+    else if (n.q.giver === null) useGame.getState().turnInQuest(n.q.id)
+    else g.toast({ kind: 'info', title: `Quest ready: ${n.q.title}`, body: `Return to ${NPCS.find((x) => x.id === n.q.giver)?.name}` })
+  }
+}
+if (typeof window !== 'undefined') {
+  useGame.subscribe((s, prev) => {
+    if (s.progress !== prev.progress) queueMicrotask(evaluateQuests)
+  })
+}
+
 /** Debug/test handle. */
 if (typeof window !== 'undefined') (window as unknown as { __oasis: typeof useGame }).__oasis = useGame
 
-export function getObjective(p: Progress, race: RaceState): { title: string; detail: string } {
+const WORLD_OBJECTIVES: Partial<Record<WorldId, { title: string; set: string; hint: (p: Progress) => string }>> = {
+  city: { title: 'Neon Heights', set: 'sigil', hint: (p) => (p.flags.includes('city-rooftop') ? 'Find the remaining sigils — check every rooftop' : p.flags.includes('city-radio') ? 'The billboard seems to be hiding something…' : 'Ride the lift, then jump pads up the towers') },
+  fantasy: { title: 'Aether Isles', set: 'rune', hint: (p) => (!p.flags.includes('fantasy-bridge') ? 'Turn the three guardians in the ruins to face the light' : !p.flags.includes('fantasy-secret') ? 'Cross the aether bridge — the castle floor hides runes' : 'Search the skies for the Aether Crystal') },
+  wasteland: { title: 'Null Sector', set: 'shard', hint: (p) => (p.flags.includes('waste-passage') ? 'Recover the remaining data shards' : 'Avoid the corruption — something in the data center is not what it seems') },
+}
+
+export function getObjective(p: Progress, race: RaceState, worldId?: WorldId): { title: string; detail: string } {
   if (race.status !== 'idle') return { title: 'Velocity Circuit', detail: 'Pass through every checkpoint ring' }
+  const wo = worldId && WORLD_OBJECTIVES[worldId]
+  if (wo) {
+    const got = p.relics.filter((r) => r.startsWith(wo.set + '-')).length
+    const total = RELIC_SETS[wo.set as keyof typeof RELIC_SETS].total
+    return { title: `${wo.title} · ${got}/${total} ${RELIC_SETS[wo.set as keyof typeof RELIC_SETS].name}s`, detail: wo.hint(p) }
+  }
   if (!p.visited.includes('arcade')) return { title: 'Explore OASIS Prime', detail: 'Find the portal to the Arcade District (north)' }
   if (!p.items.includes('copper-key')) return { title: 'The Founder’s Trail', detail: 'Find the machine that will not play' }
   if (p.locks < 1) return { title: 'The Founder’s Trail', detail: 'Bring the Copper Key to the Founder’s Gate (west)' }
@@ -578,6 +820,7 @@ export function getObjective(p: Progress, race: RaceState): { title: string; det
   if (p.glyphs.length < GLYPHS.length) return { title: 'The Founder’s Hunt', detail: `Find the hidden marks (${p.glyphs.length}/${GLYPHS.length}) — read your journal (J)` }
   if (!p.vaultOpen) return { title: 'The Founder’s Hunt', detail: 'Enter the six marks at the cipher lock behind the gate' }
   if (!p.items.includes('founder-egg')) return { title: 'The Founder’s Vault', detail: 'Ride the light beam behind the gate and claim the Egg' }
+  if (p.endings.length === 0) return { title: 'The Null Protocol', detail: p.flags.includes('sd-entered') ? 'Return to the Null Citadel and stop the Incursion' : 'Enter the Null Citadel portal that opened in the plaza (south-west)' }
   if (p.secrets.length < SECRETS.length) return { title: 'Hidden signals', detail: `Discover every secret (${p.secrets.length}/${SECRETS.length})` }
   if (p.collected.length < TOTAL_COINS) return { title: 'Treasure hunter', detail: `Collect every coin (${p.collected.length}/${TOTAL_COINS})` }
   return { title: 'Egg hunter', detail: 'You have won the Founder’s contest. The OASIS is yours to play.' }
