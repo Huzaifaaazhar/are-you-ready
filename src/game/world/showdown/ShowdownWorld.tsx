@@ -237,7 +237,7 @@ function Puzzle() {
         return
       }
       const wrong = [!l.glyphs && 'the marks', !l.lights && 'the lights', !l.memories && 'the memories'].filter(Boolean).join(', ')
-      sdHit(`The door bites back — wrong: ${wrong}.`, false)
+      sdHit(`The door bites back — wrong: ${wrong}.`, false, true)
     },
   })
   const wall = surfaceMaterial('#120a16', 0.6, 0.4)

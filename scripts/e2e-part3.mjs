@@ -368,7 +368,7 @@ async function desktop() {
   const intBefore = (await sd()).integrity
   await interact([0, 1.2, -79.8], 'door-lever', Math.PI)
   await sleep(400)
-  check('a wrong lever pull bites back', (await sd()).integrity === intBefore - 1 && !(await sd()).doorOpen)
+  check('a wrong lever pull bites back', (await sd()).integrity === intBefore - 1 && !(await sd()).doorOpen, `integrity ${intBefore}→${(await sd()).integrity}`)
   // set the six sockets to marks 1..6
   const sockPress = [4, 3, 2, 4, 3, 2]
   for (let i = 0; i < 6; i++) {

@@ -66,10 +66,12 @@ export function beginStage(stage: Stage, teleport = true) {
 }
 
 /** Damage from a hazard. Respawn sends you to the last checkpoint; at zero integrity the stage restarts. */
-export function sdHit(reason: string, respawn: boolean) {
+/** Lose one integrity. `deliberate` hits (a wrong lever pull) ignore the brief post-hit grace period. */
+export function sdHit(reason: string, respawn: boolean, deliberate = false) {
   const s = useShowdown.getState()
   const g = useGame.getState()
-  if (performance.now() < s.invulnUntil || playerState.phasing || g.overlay) return
+  if (g.overlay) return
+  if (!deliberate && (performance.now() < s.invulnUntil || playerState.phasing)) return
   const integrity = s.integrity - 1
   sfx('hurt')
   useShowdown.setState({ integrity, invulnUntil: performance.now() + 1500 })

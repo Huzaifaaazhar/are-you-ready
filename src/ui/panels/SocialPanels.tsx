@@ -44,6 +44,9 @@ export function DialoguePanel({ npc, close }: { npc: string; close: () => void }
   const def = npcById(npc)
   const [node, setNode] = useState('start')
   const [typed, setTyped] = useState(0)
+  // Touch "ghost click" guard: the tap that opened the dialogue must not also pick the option that
+  // appears under the finger.
+  const [openedAt] = useState(() => performance.now())
   const nodes = useMemo(() => buildNodes(npc, p), [npc, p])
   const cur = nodes[node] ?? nodes.start
   const options = cur.options.filter((o) => !o.if || o.if(p))
@@ -56,6 +59,7 @@ export function DialoguePanel({ npc, close }: { npc: string; close: () => void }
     return () => window.clearInterval(id)
   }, [node, cur.text])
   const choose = (o: DOption) => {
+    if (performance.now() - openedAt < 350) return
     sfx('blip')
     const g = useGame.getState()
     const a: DAction | undefined = o.action

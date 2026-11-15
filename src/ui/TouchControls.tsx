@@ -99,6 +99,8 @@ export function TouchControls() {
             e.stopPropagation()
             triggerInteract()
           }}
+          // Suppress the click synthesized after the tap, which would land on the panel it just opened.
+          onTouchEnd={(e) => e.preventDefault()}
         >
           E
         </button>
