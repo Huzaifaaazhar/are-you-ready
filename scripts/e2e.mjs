@@ -194,10 +194,12 @@ async function desktop() {
     const m = await import('/src/game/world/hub/layout.ts')
     return m.RACE_CHECKPOINTS.map((c) => c.pos)
   })
-  for (const c of cps) {
+  for (const [i, c] of cps.entries()) {
     await teleport([c[0], 1.2, c[2]])
-    await sleep(250)
+    // wait for the ring to register (frame rate varies a lot under software rendering)
+    await page.waitForFunction((i) => { const r = window.__oasis.getState().race; return r.status !== 'running' || r.next > i }, i, { timeout: 5000 }).catch(() => {})
   }
+  await sleep(300)
   s = await state()
   check('race finishes and records time', s.progress.bestRace !== null && s.race.status === 'idle' && s.progress.achievements.includes('racer'), `best ${s.progress.bestRace}`)
 
