@@ -147,7 +147,7 @@ async function desktop() {
   // jump pad on Kasumi roof → Radio 8 roof
   await teleport([-14, 9.2, 0], 0)
   await page.keyboard.down('KeyW')
-  await sleep(500)
+  await page.waitForFunction(() => window.__player.position.z < -2.4 || window.__player.position.y > 10, null, { timeout: 6000 }).catch(() => {})
   await page.keyboard.up('KeyW')
   await page.waitForFunction(() => window.__player.position.y > 19 && window.__player.position.z < -15, null, { timeout: 8000 }).catch(() => {})
   await sleep(1500)
