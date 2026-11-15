@@ -85,6 +85,13 @@ A playable 3D browser game inspired by the 2018 film *Ready Player One*: boot in
   - Worlds are lazy-loaded behind a loading screen.
   - An error boundary catches a world that fails to load and offers retry or return. A lost WebGL context is handled too.
 
+## Known limitations
+
+- **No multiplayer.** The game is offline and single-player. Residents are scripted NPCs. The presence interface is ready for a network provider, but no networking has been built or tested.
+- **Saves are local only.** Progress lives in this browser's `localStorage`; there are no accounts or cloud sync.
+- **Tested in Chromium only.** The end-to-end suites run headless Chromium with a software renderer (3–8 fps), plus an emulated iPhone. Real devices, Safari and Firefox have not been tested.
+- **Audio is not checked automatically.** The tests confirm the audio settings exist and that nothing throws, but they don't listen to the output.
+
 ## Controls
 
 | Action | Keyboard / mouse | Touch |
