@@ -120,9 +120,13 @@ async function desktop() {
   await page.keyboard.up('KeyA')
   const c2 = await car()
   check('steering turns the car', Math.abs(c2.h - c1.h) > 0.1, `heading ${c1.h.toFixed(2)} → ${c2.h.toFixed(2)}`)
-  await page.keyboard.down('KeyD')
-  await sleep(350)
-  await page.keyboard.up('KeyD')
+  // counter-steer back to straight (how far a timed key press turns depends on the frame rate)
+  for (let i = 0; i < 40 && Math.abs((await car()).h) > 0.15; i++) {
+    const key = (await car()).h > 0 ? 'KeyD' : 'KeyA'
+    await page.keyboard.down(key)
+    await sleep(90)
+    await page.keyboard.up(key)
+  }
   await page.keyboard.down('ShiftLeft')
   await sleep(700)
   const c3 = await car()
