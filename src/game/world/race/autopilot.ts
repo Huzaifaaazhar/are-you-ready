@@ -48,8 +48,14 @@ export function setAutopilotRoute(name: 'main' | 'undercity') {
 const q = new Quaternion()
 const fwd = new Vector3()
 
+// Stuck recovery: when blocked (e.g. nose-to-tail with traffic), back up briefly and change lane.
+const stuck = { since: 0, reverseUntil: 0, laneShift: 0, shiftUntilZ: -Infinity }
+
 export function resetAutopilot() {
   idx = 0
+  stuck.since = 0
+  stuck.reverseUntil = 0
+  stuck.laneShift = 0
 }
 
 export function autopilotControls(b: RapierRigidBody): ControlInput {
@@ -66,7 +72,9 @@ export function autopilotControls(b: RapierRigidBody): ControlInput {
     }
   }
   idx = best
-  const target = active[Math.min(active.length - 1, idx + 3)]
+  const base = active[Math.min(active.length - 1, idx + 3)]
+  if (pos.z > stuck.shiftUntilZ) stuck.laneShift = 0
+  const target = stuck.laneShift ? base.clone().setX(base.x + stuck.laneShift) : base
   const r = b.rotation()
   q.set(r.x, r.y, r.z, r.w)
   fwd.set(0, 0, 1).applyQuaternion(q)
@@ -79,6 +87,17 @@ export function autopilotControls(b: RapierRigidBody): ControlInput {
   const steer = Math.max(-1, Math.min(1, -diff * 2.5))
   const lin = b.linvel()
   const speed = Math.hypot(lin.x, lin.z)
+  const now = performance.now()
+  if (now < stuck.reverseUntil) return { throttle: -1, steer: -steer, handbrake: false, boost: false }
+  if (speed < 1.5) {
+    if (!stuck.since) stuck.since = now
+    else if (now - stuck.since > 2000) {
+      stuck.since = 0
+      stuck.reverseUntil = now + 1200
+      stuck.laneShift = pos.x > 0 ? -4.5 : 4.5 // move toward the other lane
+      stuck.shiftUntilZ = pos.z + 45
+    }
+  } else stuck.since = 0
   const sharp = Math.abs(diff) > 0.35
   return { throttle: sharp && speed > 22 ? 0 : 1, steer, handbrake: false, boost: !sharp && Math.abs(diff) < 0.12 }
 }
