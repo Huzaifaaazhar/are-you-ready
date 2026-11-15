@@ -173,7 +173,11 @@ export function InventoryPanel({ close }: { close: () => void }) {
   const avatar = useGame((s) => s.avatar)
   const equip = useGame((s) => s.equipItem)
   const selectVehicle = useGame((s) => s.selectVehicle)
-  const [tab, setTab] = useState<ItemCategory>('outfit')
+  // Open on the tab of the most recently acquired item.
+  const [tab, setTab] = useState<ItemCategory>(() => {
+    const last = [...p.items].reverse().find((id) => ITEMS[id])
+    return last ? itemCategory(ITEMS[last]) : 'outfit'
+  })
   const list = Object.values(ITEMS).filter((it) => itemCategory(it) === tab)
   const firstOwned = list.find((it) => p.items.includes(it.id))
   const [sel, setSel] = useState<string | null>(firstOwned?.id ?? null)

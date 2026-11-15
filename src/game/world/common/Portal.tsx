@@ -57,6 +57,7 @@ export function Portal({ id, position, rotationY = 0, color = '#00f0ff', color2 
 
   const go = () => travel(target, spawnId)
   const armedAt = useRef(0)
+  const lastZ = useRef<number | null>(null)
   useInteractable({ id, position: [position[0], position[1] + 1, position[2]], radius: 4.2, label: `Enter portal · ${label}`, onInteract: go })
 
   useFrame((s, dt) => {
@@ -70,7 +71,12 @@ export function Portal({ id, position, rotationY = 0, color = '#00f0ff', color2 
     g.updateWorldMatrix(true, false)
     inv.copy(g.matrixWorld).invert()
     tmp.copy(playerState.position).applyMatrix4(inv)
-    if (Math.abs(tmp.z) < 0.5 && Math.abs(tmp.x) < radius * 0.7 && tmp.y > -0.5 && tmp.y < cy + radius * 0.7) go()
+    // Swept test: also trigger when the player crossed the portal plane since the last frame, so a
+    // low frame rate can't step over the thin trigger zone.
+    const prev = lastZ.current
+    lastZ.current = tmp.z
+    const crossed = prev !== null && Math.sign(prev) !== Math.sign(tmp.z) && Math.abs(prev - tmp.z) < 4
+    if ((Math.abs(tmp.z) < 0.5 || crossed) && Math.abs(tmp.x) < radius * 0.7 && tmp.y > -0.5 && tmp.y < cy + radius * 0.7) go()
   })
 
   const ringMat = neonMaterial(color, 3)
